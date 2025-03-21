@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimized Colorful Growing 3D Tube</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+        }
+        #camera-instructions {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        #colorPicker {
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button id="resetBtn">Reset</button>
+        <div id="colorPicker">
+            <label for="bgColor">Background: </label>
+            <input type="color" id="bgColor" value="#ffffff">
+        </div>
+    </div>
+    
+    <div id="camera-instructions">
+        Camera Controls: Arrow Keys, WASD, QE for elevation
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff); // White background
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Background color control
+        const bgColorPicker = document.getElementById('bgColor');
+        bgColorPicker.addEventListener('input', function() {
+            scene.background = new THREE.Color(this.value);
+        });
+
+        // Lighting - simplified
+        const light = new THREE.DirectionalLight(0xffffff, 0.8);
+        light.position.set(1, 1, 1).normalize();
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x606060));
+
+        // Tube parameters
+        const tubeRadius = 0.3;
+        const radialSegments = 8; // Reduced from 12 for better performance
+        let segments = [];
+        let currentDirection = new THREE.Vector3(
+            Math.random() - 0.5,
+            Math.random() - 0.5,
+            Math.random() - 0.5
+        ).normalize();
+        const speed = 0.2;
+        const boundary = 10;
+        let currentPosition = new THREE.Vector3(0, 0, 0);
+
+        // Camera setup
+        camera.position.set(15, 15, 15);
+        camera.lookAt(0, 0, 0);
+        
+        // Camera control variables
+        const cameraSpeed = 0.5;
+        const keysPressed = {};
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Keyboard controls
+        window.addEventListener('keydown', (e) => {
+            keysPressed[e.key.toLowerCase()] = true;
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            keysPressed[e.key.toLowerCase()] = false;
+        });
+
+        // Reset button
+        document.getElementById('resetBtn').addEventListener('click', resetSimulation);
+
+        // Generate random color (excluding white)
+        function getRandomColor() {
+            const color = new THREE.Color();
+            color.setHSL(Math.random(), 1.0, 0.5);
+            return color;
+        }
+
+        // Create a new tube segment
+        function createSegment(color) {
+            const points = [currentPosition.clone()];
+            const material = new THREE.MeshPhongMaterial({
+                color: color,
+                side: THREE.DoubleSide,
+                shininess: 50 // Reduced shininess for better performance
+            });
+
+            const wireframeMaterial = new THREE.MeshBasicMaterial({
+                color: 0x000000, // Black wireframe
+                wireframe: true
+            });
+
+            // Use a minimal initial geometry - will be updated in the animation loop
+            const geometry = new THREE.BufferGeometry();
+            
+            const segment = {
+                points: points,
+                material: material,
+                wireframeMaterial: wireframeMaterial,
+                mesh: new THREE.Mesh(geometry, material),
+                wireframe: new THREE.Mesh(geometry, wireframeMaterial),
+                needsUpdate: true
+            };
+
+            scene.add(segment.mesh);
+            scene.add(segment.wireframe);
+            segments.push(segment);
+        }
+
+        // Reset simulation
+        function resetSimulation() {
+            // Remove all segments
+            segments.forEach(segment => {
+                scene.remove(segment.mesh);
+                scene.remove(segment.wireframe);
+                if (segment.mesh.geometry) segment.mesh.geometry.dispose();
+                segment.material.dispose();
+                segment.wireframeMaterial.dispose();
+            });
+            
+            segments = [];
+            currentPosition = new THREE.Vector3(0, 0, 0);
+            currentDirection = new THREE.Vector3(
+                Math.random() - 0.5,
+                Math.random() - 0.5,
+                Math.random() - 0.5
+            ).normalize();
+            
+            // Reset camera
+            camera.position.set(15, 15, 15);
+            camera.lookAt(0, 0, 0);
+            
+            // Create initial segment
+            createSegment(getRandomColor());
+        }
+
+        // Handle camera movement
+        function updateCamera() {
+            // WASD and arrow keys for movement
+            const cameraDirection = new THREE.Vector3();
+            camera.getWorldDirection(cameraDirection);
+            const cameraRight = new THREE.Vector3();
+            cameraRight.crossVectors(camera.up, cameraDirection).normalize();
+            
+            if (keysPressed['w'] || keysPressed['arrowup']) {
+                camera.position.addScaledVector(cameraDirection, cameraSpeed);
+            }
+            if (keysPressed['s'] || keysPressed['arrowdown']) {
+                camera.position.addScaledVector(cameraDirection, -cameraSpeed);
+            }
+            if (keysPressed['a'] || keysPressed['arrowleft']) {
+                camera.position.addScaledVector(cameraRight, cameraSpeed);
+            }
+            if (keysPressed['d'] || keysPressed['arrowright']) {
+                camera.position.addScaledVector(cameraRight, -cameraSpeed);
+            }
+            if (keysPressed['q']) {
+                camera.position.y += cameraSpeed;
+            }
+            if (keysPressed['e']) {
+                camera.position.y -= cameraSpeed;
+            }
+            
+            camera.lookAt(currentPosition);
+        }
+
+        // Create initial segment
+        createSegment(getRandomColor());
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Update position
+            const newPosition = currentPosition.clone().add(currentDirection.clone().multiplyScalar(speed));
+            
+            // Boundary checks with bounce
+            let bounced = false;
+            ['x', 'y', 'z'].forEach(axis => {
+                if(Math.abs(newPosition[axis]) > boundary) {
+                    currentDirection[axis] *= -1;
+                    bounced = true;
+                }
+            });
+
+            // If bounced, create new segment with new color
+            if(bounced) {
+                createSegment(getRandomColor());
+            }
+
+            // Add point to current segment
+            const currentSegment = segments[segments.length - 1];
+            currentSegment.points.push(newPosition.clone());
+            currentPosition.copy(newPosition);
+            currentSegment.needsUpdate = true;
+
+            // Only update geometries for segments that need it
+            segments.forEach(segment => {
+                if (segment.needsUpdate) {
+                    const curve = new THREE.CatmullRomCurve3(segment.points);
+                    const tubeGeometry = new THREE.TubeGeometry(
+                        curve,
+                        segment.points.length * 2, // Resolution based on points
+                        tubeRadius,
+                        radialSegments, // Reduced for better performance
+                        false
+                    );
+                    
+                    // Update geometry
+                    if (segment.mesh.geometry) {
+                        segment.mesh.geometry.dispose();
+                        segment.wireframe.geometry.dispose();
+                    }
+                    
+                    segment.mesh.geometry = tubeGeometry;
+                    segment.wireframe.geometry = tubeGeometry;
+                    segment.needsUpdate = false;
+                }
+            });
+
+            // Update camera based on user input
+            updateCamera();
+
+            renderer.render(scene, camera);
+        }
+
+        // Start animation
+        animate();
+    </script>
+</body>
+</html>
