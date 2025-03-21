@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive 3D Shapes</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #f0f8ff;
+        }
+        canvas {
+            display: block;
+        }
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #add-remove {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+        }
+        #shape-count {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+        }
+        #time-control {
+            position: absolute;
+            top: 130px;
+            right: 20px;
+            z-index: 10;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .big-button {
+            font-size: 20px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        #remove-shape {
+            background-color: #f44336;
+        }
+        #remove-shape:hover {
+            background-color: #d32f2f;
+        }
+        #pause-resume {
+            background-color: #2196F3;
+            width: auto;
+        }
+        #pause-resume:hover {
+            background-color: #0b7dda;
+        }
+        #pause-resume.paused {
+            background-color: #FF9800;
+        }
+        #pause-resume.paused:hover {
+            background-color: #e68a00;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button id="sphere">Sphere</button>
+        <button id="cube">Cube</button>
+        <button id="pyramid">Pyramid</button>
+    </div>
+    
+    <div id="add-remove">
+        <button id="add-shape" class="big-button">+</button>
+        <button id="remove-shape" class="big-button">-</button>
+    </div>
+    
+    <div id="time-control">
+        <button id="pause-resume">Pause Time</button>
+    </div>
+    
+    <div id="shape-count">Shapes: 0</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Set up scene
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f8ff); // Very light blue background
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x606060);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(1, 1, 1);
+        scene.add(directionalLight);
+
+        // Time control variables
+        let isPaused = false;
+        const pauseResumeButton = document.getElementById('pause-resume');
+
+        // Array to store all shapes
+        const shapes = [];
+        
+        // Update shape counter
+        function updateShapeCount() {
+            document.getElementById('shape-count').textContent = `Shapes: ${shapes.length}`;
+        }
+        
+        // Texture patterns for more variety
+        const texturePatterns = [
+            // Procedural textures using canvas
+            function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                
+                // Checkerboard pattern
+                const squareSize = 32;
+                for (let x = 0; x < canvas.width; x += squareSize) {
+                    for (let y = 0; y < canvas.height; y += squareSize) {
+                        const isEven = ((x / squareSize) + (y / squareSize)) % 2 === 0;
+                        ctx.fillStyle = isEven ? '#333' : '#CCC';
+                        ctx.fillRect(x, y, squareSize, squareSize);
+                    }
+                }
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                return texture;
+            },
+            function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                
+                // Gradients
+                const gradient = ctx.createLinearGradient(0, 0, 256, 256);
+                gradient.addColorStop(0, '#f00');
+                gradient.addColorStop(0.5, '#0f0');
+                gradient.addColorStop(1, '#00f');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 256, 256);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                return texture;
+            },
+            function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                
+                // Dots pattern
+                ctx.fillStyle = '#222';
+                ctx.fillRect(0, 0, 256, 256);
+                ctx.fillStyle = '#FFF';
+                
+                for (let i = 0; i < 100; i++) {
+                    const x = Math.random() * 256;
+                    const y = Math.random() * 256;
+                    const radius = 3 + Math.random() * 8;
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                return texture;
+            },
+            function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                
+                // Stripes
+                const stripeWidth = 16;
+                for (let y = 0; y < canvas.height; y += stripeWidth * 2) {
+                    ctx.fillStyle = '#3498db';
+                    ctx.fillRect(0, y, canvas.width, stripeWidth);
+                    ctx.fillStyle = '#e74c3c';
+                    ctx.fillRect(0, y + stripeWidth, canvas.width, stripeWidth);
+                }
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                return texture;
+            },
+            function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                
+                // Concentric circles
+                ctx.fillStyle = '#ecf0f1';
+                ctx.fillRect(0, 0, 256, 256);
+                
+                const colors = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6'];
+                const center = { x: 128, y: 128 };
+                
+                for (let radius = 120; radius > 0; radius -= 20) {
+                    ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
+                    ctx.beginPath();
+                    ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                return texture;
+            }
+        ];
+        
+        // Generate textures 
+        function getRandomTexture() {
+            const pattern = texturePatterns[Math.floor(Math.random() * texturePatterns.length)];
+            return pattern();
+        }
+        
+        // Current active shape for shape-changing buttons
+        let currentShapeIndex = -1;
+
+        // Create materials
+        function createRandomMaterial() {
+            return new THREE.MeshStandardMaterial({
+                color: Math.floor(Math.random() * 0xffffff),
+                metalness: Math.random() * 0.8 + 0.2,
+                roughness: Math.random() * 0.5,
+                map: Math.random() > 0.3 ? getRandomTexture() : null
+            });
+        }
+
+        // Physics properties with more stable bounce behavior
+        function createPhysicsProperties() {
+            return {
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.03,
+                    (Math.random() - 0.5) * 0.03,
+                    (Math.random() - 0.5) * 0.03
+                ),
+                rotationSpeed: new THREE.Vector3(
+                    Math.random() * 0.02 - 0.01,
+                    Math.random() * 0.02 - 0.01,
+                    Math.random() * 0.02 - 0.01
+                ),
+                gravity: new THREE.Vector3(0, -0.0005, 0), // Reduced gravity
+                damping: 0.7 + Math.random() * 0.2, // More consistent damping
+                elasticity: 1.0 + Math.random() * 0.3, // Limited elasticity
+                wobble: Math.random() > 0.7, // Some shapes wobble
+                wobbleIntensity: 0.0002, // Lower wobble intensity
+                mass: 0.5 + Math.random() * 2, // Mass for physics interactions
+                // Add polarity for attraction/repulsion
+                polarity: Math.random() > 0.5 ? 1 : -1 // Positive or negative polarity
+            };
+        }
+
+        // Bounds for the shapes
+        const bounds = {
+            minX: -5, maxX: 5,
+            minY: -5, maxY: 5,
+            minZ: -5, maxZ: 5
+        };
+
+        // Physics constants
+        const GRAVITATIONAL_CONSTANT = 0.01;
+        const MIN_DISTANCE = 0.5; // Minimum distance to prevent extreme forces
+        const COLLISION_THRESHOLD = 0.1; // Distance threshold for collision detection
+
+        // Shape creation functions
+        function createSphere() {
+            const geometry = new THREE.SphereGeometry(0.5 + Math.random() * 0.5, 32, 32);
+            updateCurrentShape(geometry);
+        }
+
+        function createCube() {
+            const size = 0.8 + Math.random() * 0.7;
+            const geometry = new THREE.BoxGeometry(size, size, size);
+            updateCurrentShape(geometry);
+        }
+
+        function createPyramid() {
+            const geometry = new THREE.ConeGeometry(0.5 + Math.random() * 0.5, 1 + Math.random(), 4);
+            updateCurrentShape(geometry);
+        }
+
+        // Update current shape's geometry
+        function updateCurrentShape(geometry) {
+            if (currentShapeIndex >= 0 && currentShapeIndex < shapes.length) {
+                const shape = shapes[currentShapeIndex];
+                scene.remove(shape.mesh);
+                
+                const newMesh = new THREE.Mesh(geometry, shape.mesh.material);
+                newMesh.position.copy(shape.mesh.position);
+                
+                shape.mesh = newMesh;
+                scene.add(newMesh);
+            }
+        }
+
+        // Get shape radius (approximate for non-spheres)
+        function getShapeRadius(shape) {
+            if (shape.mesh.geometry.type === "SphereGeometry") {
+                return shape.mesh.geometry.parameters.radius;
+            } else if (shape.mesh.geometry.type === "BoxGeometry") {
+                return Math.max(
+                    shape.mesh.geometry.parameters.width,
+                    shape.mesh.geometry.parameters.height,
+                    shape.mesh.geometry.parameters.depth
+                ) / 2;
+            } else {
+                // For cones, use radius as an approximation
+                return shape.mesh.geometry.parameters.radius;
+            }
+        }
+
+        // Add a new shape
+        function addShape() {
+            // Choose a random shape type
+            const shapeTypes = [createSphereShape, createCubeShape, createPyramidShape];
+            const randomShape = shapeTypes[Math.floor(Math.random() * shapeTypes.length)];
+            
+            const shape = randomShape();
+            shapes.push(shape);
+            currentShapeIndex = shapes.length - 1;
+            
+            scene.add(shape.mesh);
+            updateShapeCount();
+        }
+
+        // Remove the last added shape
+        function removeShape() {
+            if (shapes.length > 0) {
+                const shape = shapes.pop();
+                scene.remove(shape.mesh);
+                currentShapeIndex = shapes.length - 1;
+                updateShapeCount();
+            }
+        }
+
+        // Toggle pause/resume
+        function togglePause() {
+            isPaused = !isPaused;
+            
+            if (isPaused) {
+                pauseResumeButton.textContent = "Resume Time";
+                pauseResumeButton.classList.add("paused");
+            } else {
+                pauseResumeButton.textContent = "Pause Time";
+                pauseResumeButton.classList.remove("paused");
+            }
+        }
+
+        // Create specific shapes
+        function createSphereShape() {
+            const geometry = new THREE.SphereGeometry(0.5 + Math.random() * 0.5, 32, 32);
+            return createShapeObject(geometry);
+        }
+
+        function createCubeShape() {
+            const size = 0.8 + Math.random() * 0.7;
+            const geometry = new THREE.BoxGeometry(size, size, size);
+            return createShapeObject(geometry);
+        }
+
+        function createPyramidShape() {
+            const geometry = new THREE.ConeGeometry(0.5 + Math.random() * 0.5, 1 + Math.random(), 4);
+            return createShapeObject(geometry);
+        }
+
+        // Helper function to create shape objects
+        function createShapeObject(geometry) {
+            const material = createRandomMaterial();
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            // Random position within bounds
+            mesh.position.set(
+                (Math.random() - 0.5) * (bounds.maxX - bounds.minX) * 0.8,
+                (Math.random() - 0.5) * (bounds.maxY - bounds.minY) * 0.8,
+                (Math.random() - 0.5) * (bounds.maxZ - bounds.minZ) * 0.8
+            );
+            
+            return {
+                mesh: mesh,
+                physics: createPhysicsProperties()
+            };
+        }
+
+        // Position camera
+        camera.position.z = 7;
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Event listeners for shape type buttons
+        document.getElementById('sphere').addEventListener('click', createSphere);
+        document.getElementById('cube').addEventListener('click', createCube);
+        document.getElementById('pyramid').addEventListener('click', createPyramid);
+
+        // Event listeners for add/remove buttons
+        document.getElementById('add-shape').addEventListener('click', addShape);
+        document.getElementById('remove-shape').addEventListener('click', removeShape);
+        
+        // Event listener for pause/resume button
+        pauseResumeButton.addEventListener('click', togglePause);
+
+        // Click event for color and texture change
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('click', (event) => {
+            // Convert mouse position to normalized device coordinates
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            // Update the picking ray with the camera and mouse position
+            raycaster.setFromCamera(mouse, camera);
+
+            // Check all shapes for intersection
+            for (let i = 0; i < shapes.length; i++) {
+                const intersects = raycaster.intersectObject(shapes[i].mesh);
+                
+                if (intersects.length > 0) {
+                    // Set current shape index
+                    currentShapeIndex = i;
+                    
+                    // Change material with random color and texture
+                    shapes[i].mesh.material = createRandomMaterial();
+                    
+                    // Add some impulse for fun but within reasonable limits
+                    shapes[i].physics.velocity.x += (Math.random() - 0.5) * 0.05;
+                    shapes[i].physics.velocity.y += Math.random() * 0.05;
+                    shapes[i].physics.velocity.z += (Math.random() - 0.5) * 0.05;
+                    
+                    // Apply velocity limits
+                    limitVelocity(shapes[i].physics.velocity, 0.08);
+                    
+                    // Toggle polarity when clicked
+                    shapes[i].physics.polarity *= -1;
+                    
+                    break;
+                }
+            }
+        });
+
+        // Function to limit velocity to prevent extreme speeds
+        function limitVelocity(velocity, maxSpeed) {
+            const speed = velocity.length();
+            if (speed > maxSpeed) {
+                velocity.multiplyScalar(maxSpeed / speed);
+            }
+        }
+
+        // Apply gravitational forces between shapes
+        function applyGravitationalForces() {
+            for (let i = 0; i < shapes.length; i++) {
+                for (let j = i + 1; j < shapes.length; j++) {
+                    const shape1 = shapes[i];
+                    const shape2 = shapes[j];
+                    
+                    const pos1 = shape1.mesh.position;
+                    const pos2 = shape2.mesh.position;
+                    
+                    // Calculate direction vector
+                    const direction = new THREE.Vector3().subVectors(pos2, pos1);
+                    
+                    // Calculate distance
+                    let distance = direction.length();
+                    
+                    // Get shape radii
+                    const radius1 = getShapeRadius(shape1);
+                    const radius2 = getShapeRadius(shape2);
+                    
+                    // Prevent division by zero and extreme forces
+                    if (distance < MIN_DISTANCE) {
+                        distance = MIN_DISTANCE;
+                    }
+                    
+                    // Normalize direction vector
+                    direction.normalize();
+                    
+                    // Calculate force using gravitational formula: F = G * (m1 * m2) / r^2
+                    // Multiply by polarities to determine attraction or repulsion
+                    const forceMagnitude = GRAVITATIONAL_CONSTANT * 
+                                           (shape1.physics.mass * shape2.physics.mass) / 
+                                           (distance * distance) * 
+                                           (shape1.physics.polarity * shape2.physics.polarity);
+                    
+                    // Apply force to velocity (F = ma, so a = F/m)
+                    const force1 = direction.clone().multiplyScalar(forceMagnitude / shape1.physics.mass);
+                    const force2 = direction.clone().multiplyScalar(-forceMagnitude / shape2.physics.mass);
+                    
+                    // Add force to velocity
+                    shape1.physics.velocity.add(force1);
+                    shape2.physics.velocity.add(force2);
+                    
+                    // Check for collision
+                    if (distance < radius1 + radius2 + COLLISION_THRESHOLD) {
+                        handleCollision(shape1, shape2, direction);
+                    }
+                }
+            }
+        }
+
+        // Handle collision between shapes
+        function handleCollision(shape1, shape2, normal) {
+            const v1 = shape1.physics.velocity;
+            const v2 = shape2.physics.velocity;
+            const m1 = shape1.physics.mass;
+            const m2 = shape2.physics.mass;
+            
+            // Calculate relative velocity
+            const relativeVelocity = new THREE.Vector3().subVectors(v2, v1);
+            
+            // Calculate relative velocity along the normal
+            const velocityAlongNormal = relativeVelocity.dot(normal);
+            
+            // Do not resolve if objects are moving apart
+            if (velocityAlongNormal > 0) {
+                return;
+            }
+            
+            // Calculate restitution (bounciness) as average of both shapes
+            const restitution = (shape1.physics.elasticity + shape2.physics.elasticity) / 2;
+            
+            // Calculate impulse scalar
+            let impulseScalar = -(1 + restitution) * velocityAlongNormal;
+            impulseScalar /= 1/m1 + 1/m2;
+            
+            // Apply impulse
+            const impulse = normal.clone().multiplyScalar(impulseScalar);
+            v1.sub(impulse.clone().multiplyScalar(1/m1));
+            v2.add(impulse.clone().multiplyScalar(1/m2));
+            
+            // Apply damping
+            v1.multiplyScalar(shape1.physics.damping);
+            v2.multiplyScalar(shape2.physics.damping);
+            
+            // Ensure shapes don't get stuck inside each other by moving them slightly apart
+            const radius1 = getShapeRadius(shape1);
+            const radius2 = getShapeRadius(shape2);
+            const distance = shape1.mesh.position.distanceTo(shape2.mesh.position);
+            const overlap = radius1 + radius2 - distance + 0.01;
+            
+            if (overlap > 0) {
+                const separationVector = normal.clone().multiplyScalar(overlap);
+                shape1.mesh.position.sub(separationVector.clone().multiplyScalar(m2/(m1+m2)));
+                shape2.mesh.position.add(separationVector.clone().multiplyScalar(m1/(m1+m2)));
+            }
+        }
+
+        // Add initial shape
+        addShape();
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!isPaused) {
+                // Apply gravitational forces between shapes
+                applyGravitationalForces();
+                
+                // Update all shapes
+                shapes.forEach(shape => {
+                    const mesh = shape.mesh;
+                    const physics = shape.physics;
+                    
+                    // Apply physics
+                    physics.velocity.add(physics.gravity);
+                    
+                    // Limit velocity to prevent excessive speed
+                    limitVelocity(physics.velocity, 0.08);
+                    
+                    mesh.position.add(physics.velocity);
+                    
+                    // Apply rotation
+                    mesh.rotation.x += physics.rotationSpeed.x;
+                    mesh.rotation.y += physics.rotationSpeed.y;
+                    mesh.rotation.z += physics.rotationSpeed.z;
+                    
+                    // Add wobble if enabled
+                    if (physics.wobble) {
+                        physics.rotationSpeed.x += Math.sin(Date.now() * 0.001) * physics.wobbleIntensity;
+                        physics.rotationSpeed.y += Math.cos(Date.now() * 0.001) * physics.wobbleIntensity;
+                    }
+
+                    // Detect collisions with bounds and apply bounce with velocity clamping
+                    if (mesh.position.x < bounds.minX || mesh.position.x > bounds.maxX) {
+                        physics.velocity.x *= -physics.damping;
+                        mesh.position.x = (mesh.position.x < bounds.minX) ? bounds.minX : bounds.maxX;
+                        
+                        // Apply slight random impulse on bounce for variety
+                        physics.velocity.y *= physics.elasticity;
+                        physics.velocity.z *= physics.elasticity;
+                        limitVelocity(physics.velocity, 0.08);
+                    }
+                    
+                    if (mesh.position.y < bounds.minY || mesh.position.y > bounds.maxY) {
+                        physics.velocity.y *= -physics.damping;
+                        mesh.position.y = (mesh.position.y < bounds.minY) ? bounds.minY : bounds.maxY;
+                        
+                        physics.velocity.x *= physics.elasticity;
+                        physics.velocity.z *= physics.elasticity;
+                        limitVelocity(physics.velocity, 0.08);
+                    }
+                    
+                    if (mesh.position.z < bounds.minZ || mesh.position.z > bounds.maxZ) {
+                        physics.velocity.z *= -physics.damping;
+                        mesh.position.z = (mesh.position.z < bounds.minZ) ? bounds.minZ : bounds.maxZ;
+                        
+                        physics.velocity.x *= physics.elasticity;
+                        physics.velocity.y *= physics.elasticity;
+                        limitVelocity(physics.velocity, 0.08);
+                    }
+                    
+                    // Add drag to gradually slow down objects
+                    physics.velocity.multiplyScalar(0.998);
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
