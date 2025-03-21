@@ -26,6 +26,7 @@
             border-radius: 5px;
             display: flex;
             gap: 10px;
+            align-items: center; /* Align items vertically in the controls */
         }
         #add-remove {
             position: absolute;
@@ -117,13 +118,74 @@
         #reset-button:hover {
             background-color: #d32f2f;
         }
+        #color-picker {
+            width: 40px;
+            height: 30px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .mode-button {
+            background-color: #007bff;
+        }
+        .mode-button:hover {
+            background-color: #0056b3;
+        }
+        .mode-button.active {
+            background-color: #28a745;
+        }
+        /* Modal Styles */
+        #shape-info-modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto; /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; /* Could be more or less, depending on screen size */
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+        }
+        .modal-3d-view {
+            width: 50%;
+            height: 300px;
+            border: 1px solid #ccc;
+        }
+        .modal-details {
+            width: 50%;
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <div id="controls">
+        <input type="color" id="color-picker" value="#f0f8ff" title="Change Canvas Color">
         <button id="sphere">Sphere</button>
         <button id="cube">Cube</button>
         <button id="pyramid">Pyramid</button>
+        <button id="change-texture-mode" class="mode-button active">Change Texture</button>
+        <button id="select-shape-mode" class="mode-button">Select Shape</button>
     </div>
     <div id="add-remove">
         <button id="add-shape" class="big-button">+</button>
@@ -138,6 +200,26 @@
     </div>
 
     <canvas id="three-canvas"></canvas>
+
+    <div id="shape-info-modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <div class="modal-3d-view">
+                <canvas id="modal-canvas"></canvas>
+            </div>
+            <div class="modal-details">
+                <h2>Shape Information</h2>
+                <p><b>Index:</b> <span id="shape-index"></span></p>
+                <p><b>Type:</b> <span id="shape-type"></span></p>
+                <p><b>Position:</b> <span id="shape-position"></span></p>
+                <p><b>Rotation:</b> <span id="shape-rotation"></span></p>
+                <p><b>Scale:</b> <span id="shape-scale"></span></p>
+                <p><b>Velocity:</b> <span id="shape-velocity"></span></p>
+                <p><b>Rotation Speed:</b> <span id="shape-rotation-speed"></span></p>
+                <p><b>Polarity:</b> <span id="shape-polarity"></span></p>
+                </div>
+        </div>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
@@ -594,9 +676,57 @@
         // Event listener for pause/resume button
         pauseResumeButton.addEventListener('click', togglePause);
 
-        // Click event for color and texture change
+        // Canvas color picker functionality
+        const colorPicker = document.getElementById('color-picker');
+        colorPicker.addEventListener('input', (event) => {
+            scene.background.set(event.target.value);
+        });
+
+        // Mode selection functionality
+        const changeTextureModeButton = document.getElementById('change-texture-mode');
+        const selectShapeModeButton = document.getElementById('select-shape-mode');
+        let currentMode = 'change-texture';
+
+        changeTextureModeButton.addEventListener('click', () => {
+            currentMode = 'change-texture';
+            changeTextureModeButton.classList.add('active');
+            selectShapeModeButton.classList.remove('active');
+        });
+
+        selectShapeModeButton.addEventListener('click', () => {
+            currentMode = 'select-shape';
+            selectShapeModeButton.classList.add('active');
+            changeTextureModeButton.classList.remove('active');
+        });
+
+        // Shape selection and info modal functionality
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
+        const shapeInfoModal = document.getElementById('shape-info-modal');
+        const modalCanvas = document.getElementById('modal-canvas');
+        const modalRenderer = new THREE.WebGLRenderer({ antialias: true, canvas: modalCanvas });
+        const modalScene = new THREE.Scene();
+        modalScene.background = new THREE.Color(0xdddddd); // Light gray background for modal
+        const modalCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+        modalCamera.position.z = 2;
+        let modalShape;
+
+        // Lighting for the modal
+        const modalAmbientLight = new THREE.AmbientLight(0x606060);
+        modalScene.add(modalAmbientLight);
+        const modalDirectionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        modalDirectionalLight.position.set(1, 1, 1);
+        modalScene.add(modalDirectionalLight);
+
+        // Close modal button
+        const closeButton = document.querySelector('.close-button');
+        closeButton.addEventListener('click', () => {
+            shapeInfoModal.style.display = "none";
+            if (modalShape) {
+                modalScene.remove(modalShape);
+                modalShape = null;
+            }
+        });
 
         window.addEventListener('click', (event) => {
             // Convert mouse position to normalized device coordinates
@@ -611,27 +741,74 @@
                 const intersects = raycaster.intersectObject(shapes[i].mesh);
 
                 if (intersects.length > 0) {
-                    // Set current shape index
-                    currentShapeIndex = i;
+                    if (currentMode === 'change-texture') {
+                        // Set current shape index
+                        currentShapeIndex = i;
 
-                    // Change material with random color and texture
-                    shapes[i].mesh.material = createRandomMaterial();
+                        // Change material with random color and texture
+                        shapes[i].mesh.material = createRandomMaterial();
 
-                    // Add some impulse for fun but within reasonable limits
-                    shapes[i].physics.velocity.x += (Math.random() - 0.5) * 0.05;
-                    shapes[i].physics.velocity.y += Math.random() * 0.05;
-                    shapes[i].physics.velocity.z += (Math.random() - 0.5) * 0.05;
+                        // Add some impulse for fun but within reasonable limits
+                        shapes[i].physics.velocity.x += (Math.random() - 0.5) * 0.05;
+                        shapes[i].physics.velocity.y += Math.random() * 0.05;
+                        shapes[i].physics.velocity.z += (Math.random() - 0.5) * 0.05;
 
-                    // Apply velocity limits
-                    limitVelocity(shapes[i].physics.velocity, 0.08);
+                        // Apply velocity limits
+                        limitVelocity(shapes[i].physics.velocity, 0.08);
 
-                    // Toggle polarity when clicked
-                    shapes[i].physics.polarity *= -1;
-
+                        // Toggle polarity when clicked
+                        shapes[i].physics.polarity *= -1;
+                    } else if (currentMode === 'select-shape') {
+                        openShapeInfoModal(shapes[i], i);
+                    }
                     break;
                 }
             }
         });
+
+        function openShapeInfoModal(shapeData, index) {
+            shapeInfoModal.style.display = "block";
+
+            console.log("Shape Index:", index);
+            console.log("Shape Type:", shapeData.mesh.geometry.type);
+            console.log("Shape Position:", shapeData.mesh.position.toArray());
+            console.log("Shape Rotation:", shapeData.mesh.rotation.toArray());
+            console.log("Shape Scale:", shapeData.mesh.scale.toArray());
+            console.log("Shape Velocity:", shapeData.physics.velocity.toArray());
+            console.log("Shape Rotation Speed:", shapeData.physics.rotationSpeed.toArray());
+            console.log("Shape Polarity:", shapeData.physics.polarity);
+
+            // Update modal content
+            document.getElementById('shape-index').textContent = index;
+            document.getElementById('shape-type').textContent = shapeData.mesh.geometry.type;
+            document.getElementById('shape-position').textContent = shapeData.mesh.position.toArray().map(n => typeof n === 'number' ? n.toFixed(2) : n).join(', ');
+            document.getElementById('shape-rotation').textContent = shapeData.mesh.rotation.toArray().slice(0, 3).map(n => n.toFixed(2)).join(', '); // Take only the first 3 elements
+            document.getElementById('shape-scale').textContent = shapeData.mesh.scale.toArray().map(n => n.toFixed(2)).join(', ');
+            document.getElementById('shape-velocity').textContent = shapeData.physics.velocity.toArray().map(n => n.toFixed(4)).join(', ');
+            document.getElementById('shape-rotation-speed').textContent = shapeData.physics.rotationSpeed.toArray().map(n => n.toFixed(4)).join(', ');
+            document.getElementById('shape-polarity').textContent = shapeData.physics.polarity;
+
+            // Prepare the 3D view in the modal
+            if (modalShape) {
+                modalScene.remove(modalShape);
+            }
+            modalShape = shapeData.mesh.clone();
+            modalScene.add(modalShape);
+
+            // Adjust modal renderer size
+            const modalView = document.querySelector('.modal-3d-view');
+            modalRenderer.setSize(modalView.offsetWidth, modalView.offsetHeight);
+
+            // Adjust modal camera
+            const boundingBox = new THREE.Box3().setFromObject(modalShape);
+            const center = boundingBox.getCenter(new THREE.Vector3());
+            const size = boundingBox.getSize(new THREE.Vector3());
+            const maxDimension = Math.max(size.x, size.y, size.z);
+            const cameraDistance = maxDimension * 1.5; // Adjust multiplier as needed
+
+            modalCamera.position.set(center.x + cameraDistance, center.y + cameraDistance, center.z + cameraDistance);
+            modalCamera.lookAt(center);
+        }
 
         // Function to limit velocity to prevent extreme speeds
         function limitVelocity(velocity, maxSpeed) {
@@ -822,6 +999,12 @@
             camera.lookAt(orbitTarget);
 
             renderer.render(scene, camera);
+
+            // Render the modal scene if it's visible
+            if (shapeInfoModal.style.display === "block" && modalShape) {
+                modalShape.rotation.y += 0.01; // Slowly rotate the shape in the modal
+                modalRenderer.render(modalScene, modalCamera);
+            }
         }
 
         animate();
