@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Fighter Arena</title>
+    <style>
+        :root {
+            --primary-color: #ff4757;
+            --secondary-color: #2ed573;
+            --dark-color: #2f3542;
+            --light-color: #f1f2f6;
+            --warning-color: #e67e22;
+            --danger-color: #c0392b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--dark-color);
+            color: var(--light-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            background-image: url('arena-background.jpg');
+            background-size: cover;
+            background-position: center;
+        }
+
+        h1 {
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            font-size: 2.5rem;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 800px;
+            background-color: rgba(47, 53, 66, 0.85);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+            margin-bottom: 2rem;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .arena {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .fighter {
+            flex: 1;
+            min-width: 280px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 1.2rem;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .fighter:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+        }
+
+        .fighter-name {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 0.75rem;
+            color: var(--light-color);
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        .stats {
+            margin-bottom: 1.2rem;
+            font-size: 1rem;
+        }
+
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            align-items: center;
+        }
+
+        .stat span:first-child {
+            font-weight: 600;
+            color: #ddd;
+        }
+
+        .health-bar-container {
+            height: 24px;
+            background-color: rgba(0, 0, 0, 0.6);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 1.2rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .health-bar {
+            height: 100%;
+            background-color: var(--secondary-color);
+            transition: width 0.3s ease-out;
+            width: 100%;
+            border-radius: 12px;
+            position: relative;
+        }
+
+        .health-bar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(
+                45deg,
+                rgba(255, 255, 255, 0.2) 25%,
+                transparent 25%,
+                transparent 50%,
+                rgba(255, 255, 255, 0.2) 50%,
+                rgba(255, 255, 255, 0.2) 75%,
+                transparent 75%,
+                transparent
+            );
+            background-size: 16px 16px;
+            animation: move 1s linear infinite;
+        }
+
+        @keyframes move {
+            0% { background-position: 0 0; }
+            100% { background-position: 16px 0; }
+        }
+
+        .health-text {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 0.75rem;
+            font-size: 1.1rem;
+            color: var(--light-color);
+            text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.8);
+        }
+
+        .items {
+            margin-top: 1.2rem;
+        }
+
+        .items-title {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            color: #eee;
+            font-size: 1.1rem;
+        }
+
+        .items-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .items-list li {
+            background-color: rgba(0, 0, 0, 0.15);
+            padding: 0.5rem;
+            border-radius: 6px;
+            margin-bottom: 0.3rem;
+            font-size: 0.95rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .battle-log {
+            max-height: 250px;
+            overflow-y: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-top: 1.5rem;
+            font-size: 1rem;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(3px);
+        }
+
+        .log-entry {
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            line-height: 1.4;
+            opacity: 0.9;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .log-attack {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .log-defend {
+            color: var(--secondary-color);
+            font-weight: 600;
+        }
+
+        .log-special {
+            color: #70a1ff;
+            font-weight: 600;
+        }
+
+        .log-status {
+            color: #eccc68;
+            font-weight: bold;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.8rem 2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            box-shadow: 0 3px 7px rgba(0, 0, 0, 0.4);
+            font-size: 1.1rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        button:hover {
+            background-color: #ff6b81;
+            transform: translateY(-3px);
+            box-shadow: 0 4px 9px rgba(0, 0, 0, 0.5);
+        }
+
+        button:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        button:disabled {
+            background-color: #7f8fa6;
+            cursor: not-allowed;
+            opacity: 0.7;
+            box-shadow: none;
+            transform: translateY(0);
+        }
+
+        .win-counter {
+            font-size: 1.3rem;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 0.75rem;
+            color: gold;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+        }
+
+        .stats-display {
+            margin-top: 2.5rem;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .stats-title {
+            font-size: 2rem;
+            margin-bottom: 1.2rem;
+            color: var(--secondary-color);
+            text-align: center;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+            letter-spacing: 1px;
+        }
+
+        .stats-container {
+            background-color: rgba(47, 53, 66, 0.85);
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(4px);
+        }
+
+        .stats-list {
+            list-style: none;
+            padding-left: 0;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .stats-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 1rem;
+            align-items: center;
+        }
+
+        .stats-item:nth-child(odd) {
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .stats-item:last-child {
+            border-bottom: none;
+        }
+
+        .fighter.winner {
+            border: 3px solid gold;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.7);
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 14px rgba(255, 215, 0, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 215, 0, 0);
+            }
+        }
+
+        .crown {
+            position: absolute;
+            top: -18px;
+            right: 10px;
+            color: gold;
+            font-size: 1.8rem;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+            animation: rotateCrown 2s linear infinite;
+        }
+
+        @keyframes rotateCrown {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .arena {
+                flex-direction: column;
+            }
+
+            .fighter {
+                width: 100%;
+                min-width: auto;
+            }
+
+            .controls {
+                flex-direction: column;
+                gap: 1rem;
+            }
+        }
+
+        .error-message {
+            color: var(--danger-color);
+            font-weight: bold;
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background-color: rgba(220, 53, 69, 0.1);
+            border: 1px solid var(--danger-color);
+            border-radius: 8px;
+            animation: shake 0.5s;
+        }
+
+        .warning-message {
+            color: var(--warning-color);
+            font-weight: bold;
+            margin-top: 1rem;
+            padding: 0.75rem;
+            background-color: rgba(230, 126, 34, 0.1);
+            border: 1px solid var(--warning-color);
+            border-radius: 8px;
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Random Fighter Arena</h1>
+
+    <div class="game-container">
+        <div class="arena">
+            <div class="fighter" id="fighter1">
+                <div class="fighter-name">Fighter 1</div>
+                <div class="health-text">Health: 100/100</div>
+                <div class="health-bar-container">
+                    <div class="health-bar"></div>
+                </div>
+                <div class="stats">
+                    <div class="stat">
+                        <span>Attack:</span>
+                        <span id="fighter1-attack">0</span>
+                    </div>
+                    <div class="stat">
+                        <span>Defense:</span>
+                        <span id="fighter1-defense">0</span>
+                    </div>
+                    <div class="stat">
+                        <span>Speed:</span>
+                        <span id="fighter1-speed">0</span>
+                    </div>
+                    <div class="stat">
+                        <span>Agility:</span>
+                        <span id="fighter1-agility">0</span>
+                    </div>
+                </div>
+                <div class="items">
+                    <div class="items-title">Items:</div>
+                    <ul class="items-list" id="fighter1-items"></ul>
+                </div>
+                <div class="win-counter" id="fighter1-wins">Wins: 0</div>
+            </div>
+
+            <div class="fighter" id="fighter2">
+                <div class="fighter-name">Fighter 2</div>
+                <div class="health-text">Health: 100/100</div>
+                <div class="health-bar-container">
+                    <div class="health-bar"></div>
+                </div>
+                <div class="stats">
+                    <div class="stat">
+                        <span>Attack:</span>
+                        <span id="fighter2-attack">0</span>
+                    </div>
+                    <div class="stat">
+                        <span>Defense:</span>
+                        <span id="fighter2-defense">0</span>
+                    </div>
+                    <div class="stat">
+                        <span>Speed:</span>
+                        <span id="fighter2-speed">0</span>
+                    </div>
+                    <div class="stat">
+                        <span>Agility:</span>
+                        <span id="fighter2-agility">0</span>
+                    </div>
+                </div>
+                <div class="items">
+                    <div class="items-title">Items:</div>
+                    <ul class="items-list" id="fighter2-items"></ul>
+                </div>
+                <div class="win-counter" id="fighter2-wins">Wins: 0</div>
+            </div>
+        </div>
+
+        <div class="battle-log" id="battle-log">
+            <div class="log-entry log-status">Welcome to the Random Fighter Arena! Press "Start Fight" to begin.</div>
+        </div>
+
+        <div class="controls">
+            <button id="start-button">Start Fight</button>
+            <button id="continuous-button">Continuous: OFF</button>
+            <button id="reset-button" disabled>Reset Game</button>
+
+            <div class="speed-controls">
+                <button class="speed-btn" data-speed="100">1x</button>
+                <button class="speed-btn" data-speed="200">0.5x</button>
+                <button class="speed-btn" data-speed="400">0.25x</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="stats-display">
+        <div class="stats-title">Fighter Statistics</div>
+        <div class="stats-container">
+            <ul class="stats-list" id="stats-list">
+                <!-- Statistics will be displayed here -->
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Game state
+        const gameState = {
+            fightInProgress: false,
+            fighters: [],
+            currentFighter: 0,
+            challenger: 1,
+            turnCounter: 0,
+            fightInterval: null,
+            gameStats: loadStats() || {
+                fightsCompleted: 0,
+                fightersGenerated: 0,
+                topFighters: []
+            },
+            logMessages: [] // Store log messages
+        };
+
+        // DOM elements
+        const startButton = document.getElementById('start-button');
+        const resetButton = document.getElementById('reset-button');
+        const battleLog = document.getElementById('battle-log');
+        const fighter1Element = document.getElementById('fighter1');
+        const fighter2Element = document.getElementById('fighter2');
+        const statsListElement = document.getElementById('stats-list');
+
+        // Constants
+        const MAX_HEALTH = 100;
+        const TURN_DELAY = 200; // Increased delay for better readability
+        const LOG_MAX_ENTRIES = 50;
+        const TOP_FIGHTERS_COUNT = 10;
+
+        // Expanded name lists (tripled)
+        const firstNames = [
+            'Shadow', 'Blaze', 'Storm', 'Frost', 'Thunder', 'Crimson', 'Jade', 'Steel', 'Silver', 'Golden',
+            'Mystic', 'Savage', 'Rogue', 'Phantom', 'Silent', 'Swift', 'Mighty', 'Brutal', 'Toxic', 'Chaos',
+            'Vortex', 'Iron', 'Night', 'Dusk', 'Ember', 'Ash', 'Boulder', 'Tide', 'Gale', 'Flame',
+            'Obsidian', 'Quicksilver', 'Onyx', 'Void', 'Solar', 'Lunar', 'Nova', 'Eclipse', 'Zenith', 'Vanguard',
+            'Inferno', 'Glacier', 'Zephyr', 'Terra', 'Volt', 'Nebula', 'Viper', 'Saber', 'Fang', 'Claw'
+        ];
+
+        const lastNames = [
+            'Fist', 'Blade', 'Hunter', 'Slayer', 'Knight', 'Warrior', 'Assassin', 'Berserker', 'Guardian', 'Destroyer',
+            'Crusher', 'Viper', 'Wolf', 'Tiger', 'Dragon', 'Phoenix', 'Hawk', 'Panther', 'Scorpion', 'Cobra',
+            'Colossus', 'Titan', 'Warden', 'Reaper', 'Marauder', 'Sentinel', 'Raider', 'Overlord', 'Mercenary', 'Gladiator',
+            'Champion', 'Conqueror', 'Vanquisher', 'Executioner', 'Warlord', 'Prophet', 'Sorcerer', 'Archon', 'Paladin', 'Inquisitor',
+            'Elementalist', 'Pyromancer', 'Hydromancer', 'Aeromancer', 'Geomancer', 'Stormcaller', 'Earthshaker', 'Flamebearer', 'Tidecaller', 'Windwalker'
+        ];
+
+        // Elements and their relationships
+        const elements = {
+            fire: { 
+                emoji: '🔥', 
+                strongAgainst: ['air'], 
+                weakAgainst: ['water', 'earth'] 
+            },
+            water: { 
+                emoji: '🌊', 
+                strongAgainst: ['fire', 'earth'], 
+                weakAgainst: ['air'] 
+            },
+            air: { 
+                emoji: '🌪️', 
+                strongAgainst: ['water'], 
+                weakAgainst: ['earth'] 
+            },
+            earth: { 
+                emoji: '🌍', 
+                strongAgainst: ['fire', 'air'], 
+                weakAgainst: ['water'] 
+            }
+        };
+
+        // Items - Adjusted for better balance and variety
+        const items = [
+            { name: 'Balanced Sword', type: 'weapon', attackBonus: 6, defenseBonus: 1, special: 'Critical hit chance +8%' },
+            { name: 'Reinforced Shield', type: 'shield', attackBonus: 1, defenseBonus: 6, special: 'Block chance +12%' },
+            { name: 'Agile Armor', type: 'armor', attackBonus: 2, defenseBonus: 4, special: 'Increased evasion +10%' },
+            { name: 'Heavy Axe', type: 'weapon', attackBonus: 9, defenseBonus: -3, special: 'High damage, slow speed' },
+            { name: 'Magic Pendant', type: 'accessory', attackBonus: 3, defenseBonus: 3, special: 'Chance to counter-attack 15%' },
+            { name: 'Venomous Dagger', type: 'weapon', attackBonus: 5, defenseBonus: 0, special: 'Chance to poison (4 dmg/turn 3 turns) 20%' },
+            { name: 'HealingSalve', type: 'consumable', attackBonus: 0, defenseBonus: 0, special: 'Restores 20 health' },
+            { name: 'Chainmail', type: 'armor', attackBonus: -2, defenseBonus: 8, special: 'Strong defense, limits speed' },
+            { name: 'Arcane Staff', type: 'weapon', attackBonus: 7, defenseBonus: 2, special: 'Random elemental damage' },
+            { name: 'Lucky Charm', type: 'accessory', attackBonus: 2, defenseBonus: 2, special: 'Increased special chance 10%' },
+            { name: 'Spiked Shield', type: 'shield', attackBonus: 3, defenseBonus: 4, special: 'Deals damage on block 15%' },
+            { name: 'Nimble Boots', type: 'armor', attackBonus: 1, defenseBonus: 2, special: 'Greatly increased speed +15%' },
+            { name: 'Fire Tome', type: 'magic', element: 'fire', power: 8, special: 'Fireball attack (+intelligence)' },
+            { name: 'Water Scepter', type: 'magic', element: 'water', power: 7, special: 'Tsunami wave (+intelligence)' },
+            { name: 'Earth Gauntlets', type: 'magic', element: 'earth', power: 9, special: 'Earthquake strike (+intelligence)' },
+            { name: 'Air Circlet', type: 'magic', element: 'air', power: 6, special: 'Tornado blast (+intelligence)' },
+            { name: 'Elemental Crystal', type: 'magic', element: 'random', power: 10, special: 'Random elemental burst' },
+            { name: 'Magic Scroll', type: 'consumable', power: 15, special: 'One-time powerful spell' },
+            { name: 'Enchanted Robes', type: 'armor', defenseBonus: 4, magicResist: 5, special: 'Magic resistance +20%' }
+        ];
+
+        // Element strengths/weaknesses
+        const elementMatrix = {
+            fire: { strongAgainst: ['air'], weakAgainst: ['water', 'earth'] },
+            water: { strongAgainst: ['fire', 'earth'], weakAgainst: ['air'] },
+            earth: { strongAgainst: ['fire', 'air'], weakAgainst: ['water'] },
+            air: { strongAgainst: ['water'], weakAgainst: ['earth'] }
+        };
+
+        // Magic powers
+        const magicPowers = [
+            { name: 'Fireball', element: 'fire', basePower: 15, cost: 10 },
+            { name: 'Tsunami', element: 'water', basePower: 18, cost: 12 },
+            { name: 'Earthquake', element: 'earth', basePower: 20, cost: 15 },
+            { name: 'Tornado', element: 'air', basePower: 12, cost: 8 }
+        ];
+
+        // Initialize the game
+        function init() {
+            try {
+                // Event listeners
+                startButton.addEventListener('click', startFight);
+                resetButton.addEventListener('click', resetGame);
+
+                // Initial display update
+                updateStatsDisplay();
+
+                // Generate initial fighters
+                gameState.fighters = [generateFighter(), generateFighter()];
+                updateFighterDisplay();
+
+                // Log message
+                logMessage('Game initialized. Two fighters have been generated.', 'status');
+            } catch (error) {
+                console.error('Initialization error:', error);
+                displayErrorMessage('Failed to initialize the game. Please check the console for details.');
+            }
+        }
+
+        // Generate a random fighter
+        function generateFighter() {
+            const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+            const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+            const name = `${firstName} ${lastName}`;
+            
+            // Generate random stats between 1-10
+            const attack = Math.floor(Math.random() * 10) + 1;
+            const defense = Math.floor(Math.random() * 10) + 1;
+            const speed = Math.floor(Math.random() * 10) + 1;
+            const intelligence = Math.floor(Math.random() * 10) + 1;
+            
+            // Assign random items (1-3 items)
+            const numItems = Math.floor(Math.random() * 3) + 1;
+            const fighterItems = getRandomItems(numItems);
+            
+            // Calculate total attack and defense with item bonuses
+            let totalAttack = attack;
+            let totalDefense = defense;
+            
+            for (const item of fighterItems) {
+                totalAttack += item.attackBonus || 0;
+                totalDefense += item.defenseBonus || 0;
+            }
+            
+            // Ensure stats don't go below 1
+            totalAttack = Math.max(1, totalAttack);
+            totalDefense = Math.max(1, totalDefense);
+            
+            // Increment counter for fighters generated
+            gameState.gameStats.fightersGenerated++;
+            
+            return {
+                name,
+                baseStats: {
+                    attack,
+                    defense,
+                    speed,
+                    intelligence
+                },
+                totalStats: {
+                    attack: totalAttack,
+                    defense: totalDefense,
+                    speed,
+                    intelligence
+                },
+                health: MAX_HEALTH,
+                maxHealth: MAX_HEALTH,
+                items: fighterItems,
+                wins: 0,
+                alive: true
+            };
+        }
+
+        // Get random items
+        function getRandomItems(count) {
+            const shuffled = [...items].sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, count).map(item => ({
+                ...item,
+                attackBonus: item.attackBonus || 0,
+                defenseBonus: item.defenseBonus || 0
+            }));
+        }
+
+        // Update fighter display
+        function updateFighterDisplay() {
+            for (let i = 0; i < 2; i++) {
+                const fighter = gameState.fighters[i];
+                const elementId = `fighter${i+1}`;
+                
+                document.querySelector(`#${elementId} .fighter-name`).textContent = fighter.name;
+                document.querySelector(`#${elementId} .health-text`).textContent = `Health: ${Math.round(fighter.health)}/${fighter.maxHealth}`;
+                document.querySelector(`#${elementId} .health-bar`).style.width = `${(fighter.health / fighter.maxHealth) * 100}%`;
+                
+                document.getElementById(`${elementId}-attack`).textContent = fighter.totalStats.attack.toFixed(0);
+                document.getElementById(`${elementId}-defense`).textContent = fighter.totalStats.defense.toFixed(0);
+                document.getElementById(`${elementId}-speed`).textContent = fighter.totalStats.speed.toFixed(0);
+                document.getElementById(`${elementId}-agility`).textContent = fighter.totalStats.intelligence.toFixed(0);
+                
+                const itemsContainer = document.getElementById(`${elementId}-items`);
+                itemsContainer.innerHTML = '';
+                
+                fighter.items.forEach(item => {
+                    const itemElement = document.createElement('div');
+                    itemElement.textContent = `${item.name} (${item.special})`;
+                    itemsContainer.appendChild(itemElement);
+                });
+                
+                document.getElementById(`${elementId}-wins`).textContent = `Wins: ${fighter.wins}`;
+                
+                // Remove winner styling
+                document.getElementById(elementId).classList.remove('winner');
+                const crown = document.getElementById(elementId).querySelector('.crown');
+                if (crown) crown.remove();
+            }
+        }
+
+        // Start the fight
+        function startFight() {
+            if (gameState.fightInProgress) return;
+            
+            gameState.fightInProgress = true;
+            gameState.turnCounter = 0;
+            
+            startButton.disabled = true;
+            resetButton.disabled = false;
+            
+            logMessage('The fight begins!', 'status');
+            
+            // Reset health for both fighters
+            gameState.fighters[gameState.currentFighter].health = MAX_HEALTH;
+            gameState.fighters[gameState.challenger].health = MAX_HEALTH;
+            updateFighterDisplay();
+            
+            // Determine who goes first based on speed
+            const fighter1 = gameState.fighters[gameState.currentFighter];
+            const fighter2 = gameState.fighters[gameState.challenger];
+            
+            let firstFighter, secondFighter;
+            
+            if (fighter1.totalStats.speed >= fighter2.totalStats.speed) {
+                firstFighter = gameState.currentFighter;
+                secondFighter = gameState.challenger;
+                logMessage(`${fighter1.name} moves first due to higher speed!`, 'status');
+            } else {
+                firstFighter = gameState.challenger;
+                secondFighter = gameState.currentFighter;
+                logMessage(`${fighter2.name} moves first due to higher speed!`, 'status');
+            }
+            
+            // Start turn based combat
+            gameState.fightInterval = setInterval(() => {
+                // Determine whose turn it is
+                const attacker = gameState.turnCounter % 2 === 0 ? firstFighter : secondFighter;
+                const defender = attacker === gameState.currentFighter ? gameState.challenger : gameState.currentFighter;
+                
+                executeTurn(attacker, defender);
+                gameState.turnCounter++;
+                
+                // Check if fight is over
+                const attackerFighter = gameState.fighters[attacker];
+                const defenderFighter = gameState.fighters[defender];
+                
+                if (!defenderFighter.alive) {
+                    endFight(attacker);
+                }
+            }, TURN_DELAY);
+        }
+
+        // Execute a single turn of combat
+        function executeTurn(attackerIndex, defenderIndex) {
+            const attacker = gameState.fighters[attackerIndex];
+            const defender = gameState.fighters[defenderIndex];
+            
+            // Calculate damage
+            const attackPower = attacker.totalStats.attack;
+            const defensePower = defender.totalStats.defense;
+            
+            // Base damage calculation with randomness
+            let damage = attackPower * (0.8 + Math.random() * 0.4);
+            
+            // Apply defense reduction
+            damage = Math.max(1, damage - (defensePower * 0.5 * Math.random()));
+            
+            // Round damage to 1 decimal place
+            damage = Math.round(damage * 10) / 10;
+            
+            // Apply special effects from items
+            let specialEffect = null;
+            
+            if (Math.random() < 0.3) { // 30% chance to trigger a special effect
+                const item = attacker.items[Math.floor(Math.random() * attacker.items.length)];
+                
+                if (item) {
+                    if (item.special.includes('Critical')) {
+                        damage *= 1.5;
+                        specialEffect = 'critical hit';
+                    } else if (item.special.includes('Poison')) {
+                        damage *= 1.2;
+                        specialEffect = 'poison effect';
+                    } else if (item.special.includes('Heal')) {
+                        attacker.health = Math.min(attacker.maxHealth, attacker.health + 10);
+                        specialEffect = 'healing effect';
+                    } else if (item.special.includes('Block') && Math.random() < 0.3) {
+                        damage *= 0.5;
+                        specialEffect = 'blocked partially';
+                    } else if (item.special.includes('Counter') && Math.random() < 0.2) {
+                        // Defender will take a small counter-attack damage
+                        const counterDamage = Math.round(defensePower * 0.5);
+                        attacker.health = Math.max(0, attacker.health - counterDamage);
+                        specialEffect = `counter-attacked for ${counterDamage} damage`;
+                    }
+                }
+            }
+            
+            // Apply damage to defender
+            defender.health = Math.max(0, defender.health - damage);
+            
+            // Check if defender is defeated
+            if (defender.health <= 0) {
+                defender.alive = false;
+                logMessage(`${attacker.name} defeats ${defender.name}!`, 'status');
+            }
+            
+            // Log the action
+            const actionLog = `${attacker.name} attacks ${defender.name} for ${damage.toFixed(1)} damage!`;
+            
+            if (specialEffect) {
+                logMessage(`${actionLog} (${specialEffect})`, 'special');
+            } else {
+                logMessage(actionLog, 'attack');
+            }
+            
+            // Update display
+            updateFighterDisplay();
+        }
+
+        // End the current fight
+        function endFight(winnerIndex) {
+            clearInterval(gameState.fightInterval);
+            gameState.fightInProgress = false;
+            
+            const winner = gameState.fighters[winnerIndex];
+            const loser = gameState.fighters[winnerIndex === gameState.currentFighter ? gameState.challenger : gameState.currentFighter];
+            
+            // Increment wins for the winner
+            winner.wins++;
+            
+            // Add styling to the winner
+            const winnerElement = document.getElementById(winnerIndex === gameState.currentFighter ? 'fighter1' : 'fighter2');
+            winnerElement.classList.add('winner');
+            
+            // Add crown icon
+            const crown = document.createElement('div');
+            crown.className = 'crown';
+            crown.textContent = '👑';
+            winnerElement.appendChild(crown);
+            
+            // Update game stats
+            gameState.gameStats.fightsCompleted++;
+            updateTopFighters(winner);
+            saveStats();
+            updateStatsDisplay();
+            
+            // If current fighter won, generate a new challenger
+            if (winnerIndex === gameState.currentFighter) {
+                logMessage(`${winner.name} is victorious and prepares to face a new challenger!`, 'status');
+                
+                // Generate a new challenger
+                gameState.fighters[gameState.challenger] = generateFighter();
+                
+                // Reset the health of the current fighter
+                winner.health = MAX_HEALTH;
+                winner.alive = true;
+                
+                updateFighterDisplay();
+                
+                startButton.disabled = false;
+                startButton.textContent = 'Next Fight';
+            } else {
+                // Challenger won, make them the current fighter
+                logMessage(`${winner.name} defeats the champion and takes their place!`, 'status');
+                
+                // Move challenger to current fighter position
+                gameState.fighters[gameState.currentFighter] = winner;
+                
+                // Generate a new challenger
+                gameState.fighters[gameState.challenger] = generateFighter();
+                
+                // Reset the health of the current fighter
+                winner.health = MAX_HEALTH;
+                winner.alive = true;
+                
+                updateFighterDisplay();
+                
+                startButton.disabled = false;
+                startButton.textContent = 'Next Fight';
+            }
+        }
+
+        // Reset the game completely
+        function resetGame() {
+            clearInterval(gameState.fightInterval);
+            gameState.fightInProgress = false;
+            gameState.currentFighter = 0;
+            gameState.challenger = 1;
+            gameState.turnCounter = 0;
+            
+            // Generate new fighters
+            gameState.fighters = [generateFighter(), generateFighter()];
+            updateFighterDisplay();
+            
+            startButton.disabled = false;
+            resetButton.disabled = false;
+            startButton.textContent = 'Start Fight';
+            
+            // Clear log
+            battleLog.innerHTML = '';
+            logMessage('Game reset. Two new fighters have been generated.', 'status');
+        }
+
+        // Add message to battle log
+        function logMessage(message, type = 'normal') {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = message;
+            
+            battleLog.appendChild(logEntry);
+            
+            // Trim log if too long
+            while (battleLog.children.length > LOG_MAX_ENTRIES) {
+                battleLog.removeChild(battleLog.firstChild);
+            }
+            
+            // Scroll to bottom
+            battleLog.scrollTop = battleLog.scrollHeight;
+        }
+
+        // Update top fighters list
+        function updateTopFighters(fighter) {
+            // Create a copy of the fighter for the stats
+            const fighterStats = {
+                name: fighter.name,
+                wins: fighter.wins,
+                attack: fighter.totalStats.attack,
+                defense: fighter.totalStats.defense,
+                speed: fighter.totalStats.speed
+            };
+            
+            // Check if fighter is already in the list
+            const existingIndex = gameState.gameStats.topFighters.findIndex(f => f.name === fighter.name);
+            
+            if (existingIndex !== -1) {
+                // Update existing fighter
+                gameState.gameStats.topFighters[existingIndex] = fighterStats;
+            } else {
+                // Add new fighter
+                gameState.gameStats.topFighters.push(fighterStats);
+            }
+            
+            // Sort by wins and limit to top 10
+            gameState.gameStats.topFighters.sort((a, b) => b.wins - a.wins);
+            
+            if (gameState.gameStats.topFighters.length > TOP_FIGHTERS_COUNT) {
+                gameState.gameStats.topFighters = gameState.gameStats.topFighters.slice(0, TOP_FIGHTERS_COUNT);
+            }
+        }
+
+        // Update stats display
+        function updateStatsDisplay() {
+            const statsList = document.getElementById('stats-list');
+            statsList.innerHTML = '';
+            
+            // Add total stats
+            const totalStatsItem = document.createElement('li');
+            totalStatsItem.className = 'stats-item';
+            totalStatsItem.innerHTML = `<strong>Total Fights:</strong> ${gameState.gameStats.fightsCompleted} | <strong>Total Fighters:</strong> ${gameState.gameStats.fightersGenerated}`;
+            statsList.appendChild(totalStatsItem);
+            
+            // Add separator
+            const separator = document.createElement('li');
+            separator.className = 'stats-item';
+            separator.innerHTML = '<strong>Top Fighters:</strong>';
+            statsList.appendChild(separator);
+            
+            // Add top fighters
+            gameState.gameStats.topFighters.forEach((fighter, index) => {
+                const fighterItem = document.createElement('li');
+                fighterItem.className = 'stats-item';
+                fighterItem.innerHTML = `
+                    <span>${index + 1}. ${fighter.name}</span>
+                    <span>Wins: ${fighter.wins} | ATK: ${fighter.attack} | DEF: ${fighter.defense}</span>
+                `;
+                statsList.appendChild(fighterItem);
+            });
+        }
+
+        // Save stats to local storage
+        function saveStats() {
+            try {
+                localStorage.setItem('fighterGameStats', JSON.stringify(gameState.gameStats));
+                console.log('Game stats saved successfully');
+            } catch (error) {
+                console.error('Error saving game stats:', error);
+            }
+        }
+
+        // Load stats from local storage
+        function loadStats() {
+            try {
+                const statsData = localStorage.getItem('fighterGameStats');
+                return statsData ? JSON.parse(statsData) : null;
+            } catch (error) {
+                console.error('Error loading game stats:', error);
+                return null;
+            }
+        }
+
+        // Error handling wrapper for functions
+        function errorHandler(fn) {
+            return function(...args) {
+                try {
+                    return fn.apply(this, args);
+                } catch (error) {
+                    console.error(`Error in ${fn.name}:`, error);
+                    logMessage(`An error occurred: ${error.message}. See console for details.`, 'status');
+                }
+            };
+        }
+
+        const wrappedFunctions = {
+            startFight: errorHandler(startFight),
+            executeTurn: errorHandler(executeTurn),
+            endFight: errorHandler(endFight),
+            resetGame: errorHandler(resetGame)
+        };
+
+        Object.keys(wrappedFunctions).forEach(funcName => {
+            window[funcName] = wrappedFunctions[funcName];
+        });
+
+        // Initialize the game when DOM is loaded
+        document.addEventListener('DOMContentLoaded', errorHandler(init));
+    </script>
+</body>
+</html>
