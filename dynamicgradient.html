@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dynamic Gradient Background with Texture and Organic Movement</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    
+    .gradient-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #6e45e2, #88d3ce);
+    }
+    
+    .texture-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      opacity: 0.07;
+      mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    }
+    
+    .wave-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    
+    .wave {
+      position: absolute;
+      border-radius: 50%;
+      transform: scale(0);
+      opacity: 0;
+      mix-blend-mode: overlay;
+    }
+
+    .organic-spot {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      mix-blend-mode: soft-light;
+      filter: blur(30px);
+      opacity: 0;
+      transition: opacity 2s ease-in-out;
+    }
+    
+    .info {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      color: rgba(255,255,255,0.7);
+      font-size: 0.8rem;
+      text-align: right;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div class="gradient-container" id="gradient"></div>
+  <div class="texture-overlay"></div>
+  <div class="wave-container" id="waveContainer"></div>
+  <div id="organicContainer"></div>
+  
+  <div class="info">
+    <p>Move cursor to create ripples</p>
+  </div>
+
+  <script>
+    // Main containers
+    const gradient = document.getElementById('gradient');
+    const waveContainer = document.getElementById('waveContainer');
+    const organicContainer = document.getElementById('organicContainer');
+    
+    // Color palette system - using HSL for more controlled, pleasing colors
+    const generateHarmonizedColors = () => {
+      // Start with a random hue
+      const baseHue = Math.floor(Math.random() * 360);
+      
+      // Create harmonized colors for a pleasing, coherent palette
+      return [
+        {
+          h: baseHue,
+          s: 65 + Math.random() * 20, // 65-85% saturation
+          l: 50 + Math.random() * 15  // 50-65% lightness
+        },
+        {
+          h: (baseHue + 40) % 360,    // Analogous color
+          s: 65 + Math.random() * 20,
+          l: 55 + Math.random() * 15
+        },
+        {
+          h: (baseHue + 80) % 360,    // Another analogous color
+          s: 65 + Math.random() * 20,
+          l: 60 + Math.random() * 15
+        }
+      ];
+    };
+    
+    // Convert HSL object to CSS color string
+    const hslToString = color => {
+      return `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+    };
+    
+    // Initialize with random colors
+    let colors = generateHarmonizedColors();
+    let currentGradientAngle = 135;
+    
+    // Gradually change colors and rotate gradient
+    const updateGradient = () => {
+      const newColors = generateHarmonizedColors();
+      const newAngle = (currentGradientAngle + 30) % 360;
+      
+      // Interpolate between current and new colors
+      const interpolateColors = (t) => {
+        return colors.map((color, index) => {
+          // Interpolate hue, considering the wrapping at 360 degrees
+          const hueDiff = ((newColors[index].h - color.h) + 540) % 360 - 180;
+          const h = (color.h + hueDiff * t + 360) % 360;
+          
+          // Interpolate saturation and lightness
+          const s = color.s + (newColors[index].s - color.s) * t;
+          const l = color.l + (newColors[index].l - color.l) * t;
+          
+          return { h, s, l };
+        });
+      };
+      
+      // Animation variables
+      const startTime = performance.now();
+      const duration = 8000; // 8 seconds transition
+      
+      function animateGradient(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        const currentColors = interpolateColors(progress);
+        const angle = currentGradientAngle + (newAngle - currentGradientAngle) * progress;
+        
+        // Update the gradient with smooth angle rotation
+        gradient.style.background = `
+          linear-gradient(
+            ${angle}deg, 
+            ${hslToString(currentColors[0])}, 
+            ${hslToString(currentColors[1])}, 
+            ${hslToString(currentColors[2])}
+          )
+        `;
+        
+        if (progress < 1) {
+          requestAnimationFrame(animateGradient);
+        } else {
+          // Update the colors array with the new colors
+          colors = [...newColors];
+          currentGradientAngle = newAngle;
+        }
+      }
+      
+      requestAnimationFrame(animateGradient);
+    };
+    
+    // Create a wave effect that matches the gradient
+    const createWave = (x, y) => {
+      const wave = document.createElement('div');
+      wave.className = 'wave';
+      
+      // Position wave at mouse position
+      wave.style.left = `${x}px`;
+      wave.style.top = `${y}px`;
+      
+      // Get colors at the current position to match gradient
+      const c1 = colors[0];
+      const c2 = colors[1];
+      
+      // Create gradient color for wave that complements background
+      const waveColor1 = { 
+        h: c1.h,
+        s: c1.s,
+        l: Math.min(95, c1.l + 20) // Lighter version of gradient color
+      };
+      
+      const waveColor2 = { 
+        h: c2.h,
+        s: c2.s,
+        l: Math.max(15, c2.l - 15) // Darker version of gradient color
+      };
+      
+      // Set wave gradient that complements the background
+      wave.style.background = `
+        radial-gradient(
+          circle, 
+          ${hslToString(waveColor1)} 0%, 
+          rgba(255,255,255,0) 75%
+        )
+      `;
+      
+      // Add to container
+      waveContainer.appendChild(wave);
+      
+      // Animate the wave
+      const startTime = performance.now();
+      const duration = 2500; // 2.5 seconds animation
+      const maxSize = Math.max(window.innerWidth, window.innerHeight) * 0.3; // More subtle size
+      
+      function animateWave(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing function for natural water ripple effect
+        const easeOutCirc = 1 - Math.sqrt(1 - Math.pow(progress, 2));
+        
+        // Scale with easing and subtle maximum size
+        const scale = easeOutCirc * maxSize;
+        
+        // Opacity curve that fades in slightly then fades out
+        let opacity;
+        if (progress < 0.3) {
+          opacity = progress / 0.3 * 0.25; // Fade in to maximum opacity of 0.25
+        } else {
+          opacity = 0.25 * (1 - ((progress - 0.3) / 0.7)); // Fade out
+        }
+        
+        wave.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        wave.style.opacity = opacity;
+        wave.style.width = '10px';
+        wave.style.height = '10px';
+        
+        if (progress < 1) {
+          requestAnimationFrame(animateWave);
+        } else {
+          // Remove the wave element when animation ends
+          waveContainer.removeChild(wave);
+        }
+      }
+      
+      requestAnimationFrame(animateWave);
+    };
+    
+    // Create organic movement spots
+    const createOrganicSpot = () => {
+      // Create a new organic spot
+      const spot = document.createElement('div');
+      spot.className = 'organic-spot';
+      
+      // Random position
+      const x = Math.random() * window.innerWidth;
+      const y = Math.random() * window.innerHeight;
+      
+      // Random size (50-200px)
+      const size = 50 + Math.random() * 150;
+      
+      // Random color from our palette with variations
+      const colorIndex = Math.floor(Math.random() * colors.length);
+      const baseColor = colors[colorIndex];
+      
+      // Add slight variation to the color
+      const spotColor = {
+        h: (baseColor.h + (Math.random() * 20 - 10)) % 360,
+        s: Math.min(100, Math.max(0, baseColor.s + (Math.random() * 20 - 10))),
+        l: Math.min(90, Math.max(20, baseColor.l + (Math.random() * 20 - 10)))
+      };
+      
+      // Set style properties
+      spot.style.left = `${x}px`;
+      spot.style.top = `${y}px`;
+      spot.style.width = `${size}px`;
+      spot.style.height = `${size}px`;
+      spot.style.backgroundColor = hslToString(spotColor);
+      
+      // Add to container
+      organicContainer.appendChild(spot);
+      
+      // Fade in
+      setTimeout(() => {
+        spot.style.opacity = 0.4 + Math.random() * 0.3; // Random opacity between 0.4-0.7
+      }, 100);
+      
+      // Animate organic movement
+      const duration = 10000 + Math.random() * 15000; // 10-25 seconds
+      const startTime = performance.now();
+      const startX = x;
+      const startY = y;
+      const moveRangeX = 100 + Math.random() * 150; // 100-250px movement range
+      const moveRangeY = 100 + Math.random() * 150;
+      const directionX = Math.random() > 0.5 ? 1 : -1;
+      const directionY = Math.random() > 0.5 ? 1 : -1;
+      
+      function animateSpot(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Sinusoidal motion for natural movement
+        const moveX = startX + Math.sin(progress * Math.PI * 2) * moveRangeX * directionX;
+        const moveY = startY + Math.sin(progress * Math.PI * 2 + Math.PI/2) * moveRangeY * directionY;
+        
+        spot.style.left = `${moveX}px`;
+        spot.style.top = `${moveY}px`;
+        
+        // Pulse size slightly
+        const sizeFactor = 1 + Math.sin(progress * Math.PI * 4) * 0.1;
+        spot.style.width = `${size * sizeFactor}px`;
+        spot.style.height = `${size * sizeFactor}px`;
+        
+        if (progress < 1) {
+          requestAnimationFrame(animateSpot);
+        } else {
+          // Fade out and remove
+          spot.style.opacity = 0;
+          setTimeout(() => {
+            organicContainer.removeChild(spot);
+            // Create a new spot to replace this one
+            setTimeout(createOrganicSpot, Math.random() * 2000);
+          }, 2000);
+        }
+      }
+      
+      requestAnimationFrame(animateSpot);
+    };
+    
+    // Initialize gradient
+    gradient.style.background = `
+      linear-gradient(
+        ${currentGradientAngle}deg, 
+        ${hslToString(colors[0])}, 
+        ${hslToString(colors[1])},
+        ${hslToString(colors[2])}
+      )
+    `;
+    
+    // Create debounced function for creating waves
+    let lastWaveTime = 0;
+    const createWaveDebounced = (x, y) => {
+      const now = performance.now();
+      if (now - lastWaveTime > 150) { // Limit to one wave per 150ms for subtlety
+        createWave(x, y);
+        lastWaveTime = now;
+      }
+    };
+    
+    // Event listeners
+    document.addEventListener('mousemove', event => {
+      createWaveDebounced(event.clientX, event.clientY);
+    });
+    
+    document.addEventListener('click', event => {
+      // Create multiple waves on click for a more pronounced ripple effect
+      createWave(event.clientX, event.clientY);
+      setTimeout(() => createWave(event.clientX, event.clientY), 100);
+      setTimeout(() => createWave(event.clientX, event.clientY), 200);
+    });
+    
+    // Handle touch events for mobile
+    document.addEventListener('touchmove', event => {
+      if (event.touches.length > 0) {
+        event.preventDefault();
+        createWaveDebounced(event.touches[0].clientX, event.touches[0].clientY);
+      }
+    }, { passive: false });
+    
+    document.addEventListener('touchstart', event => {
+      if (event.touches.length > 0) {
+        createWave(event.touches[0].clientX, event.touches[0].clientY);
+      }
+    });
+    
+    // Initialize organic spots (start with 5-8 spots)
+    const initialSpots = 5 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < initialSpots; i++) {
+      setTimeout(() => createOrganicSpot(), i * 800); // Stagger creation
+    }
+    
+    // Occasionally create new spots
+    setInterval(() => {
+      if (Math.random() < 0.3 && organicContainer.children.length < 12) {
+        createOrganicSpot();
+      }
+    }, 3000);
+    
+    // Gradually change color every 15 seconds
+    setInterval(updateGradient, 15000);
+    
+    // Initial color transition
+    updateGradient();
+  </script>
+</body>
+</html>
