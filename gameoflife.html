@@ -255,10 +255,31 @@
         let cellAges = [];
         let meshes = [];
 
-        function getGenerationColor(generation) {
+        /*function getGenerationColor(generation) {
             if (!config.colorMap.has(generation)) {
                 const hue = (generation * 137.508) % 360;
                 config.colorMap.set(generation, new THREE.Color().setHSL(hue/360, 0.8, 0.5));
+            }
+            return config.colorMap.get(generation);
+        }*/
+
+        function getGenerationColor(generation) {
+            if (!config.colorMap.has(generation)) {
+                // Randomize the starting hue for the first generation
+                const baseHue = generation === 0 ? Math.random() * 360 : 0;
+                
+                // Use a combination of sine and cosine for dynamic color changes
+                const hue = (baseHue + generation * 137.508 + Math.sin(generation * 0.1) * 50) % 360;
+                
+                // Ensure vibrant colors with high saturation and moderate lightness
+                const saturation = 0.9; // High saturation for vibrant colors
+                const lightness = 0.5 + Math.cos(generation * 0.03) * 0.1; // Slight oscillation for depth
+                
+                // Create a vibrant color
+                const color = new THREE.Color().setHSL(hue / 360, saturation, lightness);
+                
+                // Store the color for this generation
+                config.colorMap.set(generation, color);
             }
             return config.colorMap.get(generation);
         }
@@ -341,48 +362,81 @@
                         const current = cells[x][y][z];
                         let newState = 0;
 
+                        // Apply Conway's rules
                         if (current === 1) {
-                            newState = (neighbors > 1 && neighbors < 5) ? 1 : 0;
+                            newState = (neighbors > 1 && neighbors < 5) ? 1 : 0; // Survival rule
                             if (!newState) newDeaths++;
                         } else {
-                            newState = neighbors === 4 ? 1 : 0;
+                            newState = neighbors === 4 ? 1 : 0; // Birth rule
                             if (newState) newBorn++;
                         }
 
+                        // Planet mode boundary check
                         if (config.mode === 'planet') {
-                            const dx = x - config.gridSize/2 + 0.5;
-                            const dy = y - config.gridSize/2 + 0.5;
-                            const dz = z - config.gridSize/2 + 0.5;
-                            if (Math.sqrt(dx*dx + dy*dy + dz*dz) > config.gridSize/2) {
+                            const dx = x - config.gridSize / 2 + 0.5;
+                            const dy = y - config.gridSize / 2 + 0.5;
+                            const dz = z - config.gridSize / 2 + 0.5;
+                            if (Math.sqrt(dx * dx + dy * dy + dz * dz) > config.gridSize / 2) {
                                 newState = 0;
                             }
                         }
 
+                        // Update cell state and age
                         newCells[x][y][z] = newState;
-                        newAges[x][y][z] = newState ? (current ? cellAges[x][y][z] + 1 : 0) : -1;
+                        if (newState === 1) {
+                            // If the cell is alive, increment its age if it was already alive
+                            newAges[x][y][z] = current === 1 ? cellAges[x][y][z] + 1 : 0;
+                        } else {
+                            // If the cell is dead, set age to -1
+                            newAges[x][y][z] = -1;
+                        }
                     }
                 }
             }
 
+            // Update stats
             const statsEntry = {
                 generation: config.generation,
                 created: newBorn,
                 deaths: newDeaths,
                 color: getGenerationColor(config.generation).getHexString(),
-                totalDeaths: config.deadCells,
-                totalCreated: config.totalCreated
+                totalDeaths: config.deadCells + newDeaths,
+                totalCreated: config.totalCreated + newBorn
             };
 
-            config.generationStats.push(statsEntry);
             config.deadCells += newDeaths;
             config.totalCreated += newBorn;
             config.generation++;
-            
+            config.generationStats.push(statsEntry);
+
+
+            let gen0Count = 0;
+            let otherGenCount = 0;
+            for (let x = 0; x < config.gridSize; x++) {
+                for (let y = 0; y < config.gridSize; y++) {
+                    for (let z = 0; z < config.gridSize; z++) {
+                        if (cells[x][y][z] === 1) {
+                            if (cellAges[x][y][z] === 0) gen0Count++;
+                            else otherGenCount++;
+                        }
+                    }
+                }
+            }
+
+
+            console.log(`Generation ${config.generation}:`);
+            console.log(`- Generation 0 cells: ${gen0Count}`);
+            console.log(`- Other generation cells: ${otherGenCount}`);
+            console.log(`- New born: ${newBorn}`);
+            console.log(`- New deaths: ${newDeaths}`);
+
+            // Update the grid
             cells = newCells;
             cellAges = newAges;
             updateVisualization();
             updateCounters();
         }
+
 
         function updateVisualization() {
             meshes.forEach(mesh => scene.remove(mesh));
@@ -453,7 +507,7 @@
         });
         document.getElementById('random').addEventListener('click', () => {
             config.generation = 0;
-            config.initialDensity = Math.random() * 0.4 + 0.1;
+            config.initialDensity = 0.03;
             initializeGrid();
         });
         document.getElementById('gridSize').addEventListener('change', (e) => {
