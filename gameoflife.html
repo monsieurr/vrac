@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Conway's Game of Life</title>
+    <style>
+        body { 
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            user-select: none;
+        }
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        button {
+            margin: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        #controls label { display: inline-block; margin: 5px; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 5px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .modal th, .modal td {
+            padding: 8px;
+            border: 1px solid #444;
+        }
+        .color-swatch {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 5px;
+        }
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h2>3D Conway's Game of Life</h2>
+        <p>Generation: <span id="generation">0</span></p>
+        <p>Population: <span id="population">0</span></p>
+        <p>Dead Cells: <span id="dead">0</span></p>
+        <p>Avg. Cells/Gen: <span id="average">0</span></p>
+    </div>
+    <div id="controls">
+        <button id="start">Start</button>
+        <button id="stop">Stop</button>
+        <button id="step">Step</button>
+        <button id="reset">Reset</button>
+        <button id="random">Random</button>
+        <button id="showStats">Show Stats</button>
+        <br>
+        <label>Background Color:
+            <input type="color" id="backgroundColor" value="#111111">
+        </label>
+        <label>Shape:
+            <select id="shape">
+                <option value="cube">Cube</option>
+                <option value="sphere">Sphere</option>
+            </select>
+        </label>
+        <label>Mode:
+            <select id="mode">
+                <option value="cube">Cube</option>
+                <option value="planet">Planet</option>
+            </select>
+        </label>
+        <br>
+        <label>Grid Size: 
+            <select id="gridSize">
+                <option value="10">10×10×10</option>
+                <option value="15" selected>15×15×15</option>
+                <option value="20">20×20×20</option>
+                <option value="25">25×25×25</option>
+            </select>
+        </label>
+        <label>Speed: 
+            <select id="speed">
+                <option value="2000">Slow</option>
+                <option value="1000" selected>Normal</option>
+                <option value="500">Fast</option>
+                <option value="250">Very Fast</option>
+            </select>
+        </label>
+    </div>
+
+    <div id="statsModal" class="modal">
+        <div class="modal-close" onclick="document.getElementById('statsModal').style.display = 'none'">×</div>
+        <h3>Simulation Statistics</h3>
+        <button id="copyButton">Copy as Markdown</button>
+        <div id="tableContainer"></div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
+        
+        let config = {
+            gridSize: 15,
+            initialDensity: 0.3,
+            speed: 1000,
+            running: false,
+            generation: 0,
+            shape: 'cube',
+            mode: 'cube',
+            deadCells: 0,
+            totalCreated: 0,
+            generationStats: [],
+            colorMap: new Map()
+        };
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111111);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(config.gridSize * 1.5, config.gridSize * 1.5, config.gridSize * 1.5);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        class CustomOrbitControls {
+            constructor(camera, domElement) {
+                this.camera = camera;
+                this.domElement = domElement;
+                this.target = new THREE.Vector3(0, 0, 0);
+                this.enableDamping = false;
+                this.dampingFactor = 0.05;
+                this.rotateSpeed = 1.0;
+                this.zoomSpeed = 1.0;
+                this.minDistance = 1;
+                this.maxDistance = 1000;
+                this.minPolarAngle = 0;
+                this.maxPolarAngle = Math.PI;
+                this.minAzimuthAngle = -Infinity;
+                this.maxAzimuthAngle = Infinity;
+                this.spherical = new THREE.Spherical().setFromVector3(camera.position.clone().sub(this.target));
+                this.isRotating = false;
+                this.mouseX = 0;
+                this.mouseY = 0;
+                this.prevMouseX = 0;
+                this.prevMouseY = 0;
+                
+                this.domElement.addEventListener('mousedown', this.onMouseDown.bind(this), false);
+                this.domElement.addEventListener('mousemove', this.onMouseMove.bind(this), false);
+                this.domElement.addEventListener('mouseup', this.onMouseUp.bind(this), false);
+                this.domElement.addEventListener('wheel', this.onMouseWheel.bind(this), false);
+            }
+            
+            onMouseDown(event) {
+                event.preventDefault();
+                if (event.button === 0) this.isRotating = true;
+                this.prevMouseX = event.clientX;
+                this.prevMouseY = event.clientY;
+            }
+            
+            onMouseMove(event) {
+                event.preventDefault();
+                this.mouseX = event.clientX;
+                this.mouseY = event.clientY;
+                const deltaX = this.mouseX - this.prevMouseX;
+                const deltaY = this.mouseY - this.prevMouseY;
+                
+                if (this.isRotating) {
+                    const rotateLeft = -2 * Math.PI * deltaX / this.domElement.clientWidth * this.rotateSpeed;
+                    const rotateUp = -2 * Math.PI * deltaY / this.domElement.clientHeight * this.rotateSpeed;
+                    this.spherical.phi = Math.max(this.minPolarAngle, Math.min(this.maxPolarAngle, this.spherical.phi + rotateUp));
+                    this.spherical.theta += rotateLeft;
+                    this.spherical.theta = Math.max(this.minAzimuthAngle, Math.min(this.maxAzimuthAngle, this.spherical.theta));
+                    this.updateCamera();
+                }
+                this.prevMouseX = this.mouseX;
+                this.prevMouseY = this.mouseY;
+            }
+            
+            onMouseUp(event) {
+                event.preventDefault();
+                this.isRotating = false;
+            }
+            
+            onMouseWheel(event) {
+                event.preventDefault();
+                event.deltaY < 0 ? this.dollyIn(1.1) : this.dollyOut(1.1);
+                this.updateCamera();
+            }
+            
+            dollyIn(dollyScale) {
+                this.spherical.radius /= dollyScale;
+                this.spherical.radius = Math.max(this.minDistance, Math.min(this.maxDistance, this.spherical.radius));
+            }
+            
+            dollyOut(dollyScale) {
+                this.spherical.radius *= dollyScale;
+                this.spherical.radius = Math.max(this.minDistance, Math.min(this.maxDistance, this.spherical.radius));
+            }
+            
+            updateCamera() {
+                const offset = new THREE.Vector3();
+                offset.setFromSpherical(this.spherical);
+                this.camera.position.copy(this.target).add(offset);
+                this.camera.lookAt(this.target);
+            }
+            
+            update() {
+                if (this.enableDamping) {}
+            }
+        }
+        
+        const controls = new CustomOrbitControls(camera, renderer.domElement);
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(1, 1, 1);
+        scene.add(directionalLight);
+
+        const cubeGeometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+        const sphereGeometry = new THREE.SphereGeometry(0.4, 32, 32);
+        let cells = [];
+        let cellAges = [];
+        let meshes = [];
+
+        function getGenerationColor(generation) {
+            if (!config.colorMap.has(generation)) {
+                const hue = (generation * 137.508) % 360;
+                config.colorMap.set(generation, new THREE.Color().setHSL(hue/360, 0.8, 0.5));
+            }
+            return config.colorMap.get(generation);
+        }
+
+        function initializeGrid() {
+            cells = [];
+            cellAges = [];
+            meshes.forEach(mesh => scene.remove(mesh));
+            meshes = [];
+            config.deadCells = 0;
+            config.totalCreated = 0;
+            config.generationStats = [];
+            config.colorMap.clear();
+
+            for (let x = 0; x < config.gridSize; x++) {
+                cells[x] = [];
+                cellAges[x] = [];
+                for (let y = 0; y < config.gridSize; y++) {
+                    cells[x][y] = [];
+                    cellAges[x][y] = [];
+                    for (let z = 0; z < config.gridSize; z++) {
+                        if (config.mode === 'planet') {
+                            const dx = x - config.gridSize/2 + 0.5;
+                            const dy = y - config.gridSize/2 + 0.5;
+                            const dz = z - config.gridSize/2 + 0.5;
+                            if (Math.sqrt(dx*dx + dy*dy + dz*dz) > config.gridSize/2) {
+                                cells[x][y][z] = 0;
+                                continue;
+                            }
+                        }
+                        cells[x][y][z] = Math.random() < config.initialDensity ? 1 : 0;
+                        cellAges[x][y][z] = cells[x][y][z] ? 0 : -1;
+                    }
+                }
+            }
+            updateVisualization();
+            updateCounters();
+        }
+
+        function countNeighbors(x, y, z) {
+            let count = 0;
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dz = -1; dz <= 1; dz++) {
+                        if (dx === 0 && dy === 0 && dz === 0) continue;
+                        const nx = x + dx, ny = y + dy, nz = z + dz;
+                        
+                        if (nx < 0 || nx >= config.gridSize ||
+                            ny < 0 || ny >= config.gridSize ||
+                            nz < 0 || nz >= config.gridSize) continue;
+                            
+                        if (config.mode === 'planet') {
+                            const px = nx - config.gridSize/2 + 0.5;
+                            const py = ny - config.gridSize/2 + 0.5;
+                            const pz = nz - config.gridSize/2 + 0.5;
+                            if (Math.sqrt(px*px + py*py + pz*pz) > config.gridSize/2) continue;
+                        }
+                        
+                        count += cells[nx][ny][nz];
+                    }
+                }
+            }
+            return count;
+        }
+
+        function nextGeneration() {
+            const newCells = [];
+            const newAges = [];
+            let newBorn = 0;
+            let newDeaths = 0;
+
+            for (let x = 0; x < config.gridSize; x++) {
+                newCells[x] = [];
+                newAges[x] = [];
+                for (let y = 0; y < config.gridSize; y++) {
+                    newCells[x][y] = [];
+                    newAges[x][y] = [];
+                    for (let z = 0; z < config.gridSize; z++) {
+                        const neighbors = countNeighbors(x, y, z);
+                        const current = cells[x][y][z];
+                        let newState = 0;
+
+                        if (current === 1) {
+                            newState = (neighbors > 1 && neighbors < 5) ? 1 : 0;
+                            if (!newState) newDeaths++;
+                        } else {
+                            newState = neighbors === 4 ? 1 : 0;
+                            if (newState) newBorn++;
+                        }
+
+                        if (config.mode === 'planet') {
+                            const dx = x - config.gridSize/2 + 0.5;
+                            const dy = y - config.gridSize/2 + 0.5;
+                            const dz = z - config.gridSize/2 + 0.5;
+                            if (Math.sqrt(dx*dx + dy*dy + dz*dz) > config.gridSize/2) {
+                                newState = 0;
+                            }
+                        }
+
+                        newCells[x][y][z] = newState;
+                        newAges[x][y][z] = newState ? (current ? cellAges[x][y][z] + 1 : 0) : -1;
+                    }
+                }
+            }
+
+            const statsEntry = {
+                generation: config.generation,
+                created: newBorn,
+                deaths: newDeaths,
+                color: getGenerationColor(config.generation).getHexString(),
+                totalDeaths: config.deadCells,
+                totalCreated: config.totalCreated
+            };
+
+            config.generationStats.push(statsEntry);
+            config.deadCells += newDeaths;
+            config.totalCreated += newBorn;
+            config.generation++;
+            
+            cells = newCells;
+            cellAges = newAges;
+            updateVisualization();
+            updateCounters();
+        }
+
+        function updateVisualization() {
+            meshes.forEach(mesh => scene.remove(mesh));
+            meshes = [];
+            const geometry = config.shape === 'cube' ? cubeGeometry : sphereGeometry;
+
+            for (let x = 0; x < config.gridSize; x++) {
+                for (let y = 0; y < config.gridSize; y++) {
+                    for (let z = 0; z < config.gridSize; z++) {
+                        if (cells[x][y][z] === 1) {
+                            const material = new THREE.MeshLambertMaterial({
+                                color: getGenerationColor(cellAges[x][y][z])
+                            });
+                            const mesh = new THREE.Mesh(geometry, material);
+                            mesh.position.set(
+                                x - config.gridSize/2 + 0.5,
+                                y - config.gridSize/2 + 0.5,
+                                z - config.gridSize/2 + 0.5
+                            );
+                            scene.add(mesh);
+                            meshes.push(mesh);
+                        }
+                    }
+                }
+            }
+        }
+
+        function updateCounters() {
+            document.getElementById('generation').textContent = config.generation;
+            let population = 0;
+            for (let x = 0; x < config.gridSize; x++) {
+                for (let y = 0; y < config.gridSize; y++) {
+                    for (let z = 0; z < config.gridSize; z++) {
+                        population += cells[x][y][z];
+                    }
+                }
+            }
+            document.getElementById('population').textContent = population;
+            document.getElementById('dead').textContent = config.deadCells;
+            const avg = config.generation > 0 ? (config.totalCreated / config.generation).toFixed(2) : 0;
+            document.getElementById('average').textContent = avg;
+        }
+
+        let lastTime = 0;
+        function animate(time) {
+            requestAnimationFrame(animate);
+            controls.update();
+            if (config.running && time - lastTime > config.speed) {
+                nextGeneration();
+                lastTime = time;
+            }
+            renderer.render(scene, camera);
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Event listeners
+        document.getElementById('start').addEventListener('click', () => config.running = true);
+        document.getElementById('stop').addEventListener('click', () => config.running = false);
+        document.getElementById('step').addEventListener('click', nextGeneration);
+        document.getElementById('reset').addEventListener('click', () => {
+            config.generation = 0;
+            initializeGrid();
+        });
+        document.getElementById('random').addEventListener('click', () => {
+            config.generation = 0;
+            config.initialDensity = Math.random() * 0.4 + 0.1;
+            initializeGrid();
+        });
+        document.getElementById('gridSize').addEventListener('change', (e) => {
+            config.gridSize = parseInt(e.target.value);
+            config.generation = 0;
+            initializeGrid();
+            camera.position.set(config.gridSize * 1.5, config.gridSize * 1.5, config.gridSize * 1.5);
+            controls.update();
+        });
+        
+        document.getElementById('speed').addEventListener('change', (e) => {
+            config.speed = parseInt(e.target.value);
+        });
+
+        document.getElementById('backgroundColor').addEventListener('input', e => {
+            scene.background = new THREE.Color(e.target.value);
+        });
+
+        document.getElementById('mode').addEventListener('change', e => {
+            config.mode = e.target.value;
+            initializeGrid();
+        });
+
+        // Fix copy button event listener
+        //document.getElementById('copyButton').addEventListener('click', copyToClipboard);
+
+        // Fix shape selector functionality
+        document.getElementById('shape').addEventListener('change', e => {
+            config.shape = e.target.value;
+            updateVisualization();
+        });
+
+        // Event listeners
+        document.getElementById('showStats').addEventListener('click', showStats);
+
+        initializeGrid();
+        animate(0);
+
+
+        function showStats() {
+            const container = document.getElementById('tableContainer');
+            let html = `<table>
+                <tr>
+                    <th>Generation</th>
+                    <th>Created</th>
+                    <th>Deaths</th>
+                    <th>Color</th>
+                    <th>Total Deaths</th>
+                    <th>Total Created</th>
+                </tr>`;
+
+            config.generationStats.forEach(stat => {
+                html += `<tr>
+                    <td>${stat.generation}</td>
+                    <td>${stat.created}</td>
+                    <td>${stat.deaths}</td>
+                    <td><div class="color-swatch" style="background:#${stat.color}"></div>#${stat.color}</td>
+                    <td>${stat.totalDeaths}</td>
+                    <td>${stat.totalCreated}</td>
+                </tr>`;
+            });
+
+            html += '</table>';
+            container.innerHTML = html;
+            document.getElementById('statsModal').style.display = 'block';
+        }
+
+        function copyToClipboard() {
+            let md = "| Generation | Created | Deaths | Color | Total Deaths | Total Created |\n";
+            md += "|------------|---------|--------|-------|--------------|---------------|\n";
+            
+            config.generationStats.forEach(stat => {
+                md += `| ${stat.generation} | ${stat.created} | ${stat.deaths} | #${stat.color} | ${stat.totalDeaths} | ${stat.totalCreated} |\n`;
+            });
+
+            navigator.clipboard.writeText(md).then(() => {
+                alert('Markdown table copied to clipboard!');
+            });
+        }
+
+
+    </script>
+</body>
+</html>
