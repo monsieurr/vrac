@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enhanced Textured Gradient Generator</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      overflow: hidden;
+      font-family: 'Arial', sans-serif;
+    }
+    
+    #canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    
+    #controls {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+      max-height: 90vh;
+      overflow-y: auto;
+      z-index: 10;
+    }
+    
+    .control-group {
+      margin-bottom: 15px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      padding-bottom: 15px;
+    }
+    
+    .control-group:last-child {
+      border-bottom: none;
+    }
+    
+    .control-group h3 {
+      margin-bottom: 8px;
+      font-size: 1em;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 0.9em;
+    }
+    
+    input[type="range"], input[type="color"] {
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    
+    input[type="color"] {
+      height: 30px;
+    }
+    
+    select {
+      width: 100%;
+      padding: 5px;
+      margin-bottom: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      border: none;
+      border-radius: 4px;
+    }
+    
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1em;
+      width: 100%;
+      margin-top: 10px;
+    }
+    
+    button:hover {
+      background: #45a049;
+    }
+    
+    .toggle-controls {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 20;
+      cursor: pointer;
+      display: none;
+    }
+    
+    @media (max-width: 768px) {
+      #controls {
+        width: 100%;
+        right: 0;
+        top: 0;
+        border-radius: 0;
+        display: none;
+      }
+      
+      .toggle-controls {
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  
+  <div class="toggle-controls" id="toggleControls">Show Controls</div>
+  
+  <div id="controls">
+    <div class="control-group">
+      <h3>Gradient Colors</h3>
+      <label for="color1">Color 1:</label>
+      <input type="color" id="color1" value="#FF4500">
+      
+      <label for="color2">Color 2:</label>
+      <input type="color" id="color2" value="#00BFFF">
+      
+      <label for="color3">Color 3 (Optional):</label>
+      <input type="color" id="color3" value="#7B68EE">
+      
+      <label for="useThirdColor">
+        <input type="checkbox" id="useThirdColor"> Enable third color
+      </label>
+    </div>
+    
+    <div class="control-group">
+      <h3>Base Texture</h3>
+      <label for="textureType">Texture Type:</label>
+      <select id="textureType">
+        <option value="noise">Noise</option>
+        <option value="cells">Cellular</option>
+        <option value="waves">Waves</option>
+        <option value="marble">Marble</option>
+        <option value="ridged">Ridged</option>
+      </select>
+      
+      <label for="noiseScale">Pattern Scale: <span id="noiseScaleValue">5.0</span></label>
+      <input type="range" id="noiseScale" min="1" max="20" step="0.1" value="5.0">
+      
+      <label for="noiseIntensity">Pattern Intensity: <span id="noiseIntensityValue">0.5</span></label>
+      <input type="range" id="noiseIntensity" min="0" max="2" step="0.01" value="0.5">
+    </div>
+    
+    <div class="control-group">
+      <h3>Depth & Movement</h3>
+      <label for="depthEnabled">
+        <input type="checkbox" id="depthEnabled" checked> Enable depth effect
+      </label>
+      
+      <label for="depthIntensity">Depth Intensity: <span id="depthIntensityValue">0.2</span></label>
+      <input type="range" id="depthIntensity" min="0" max="1" step="0.01" value="0.2">
+      
+      <label for="heightScale">Height Scale: <span id="heightScaleValue">0.3</span></label>
+      <input type="range" id="heightScale" min="0" max="1" step="0.01" value="0.3">
+      
+      <label for="speedX">Speed X: <span id="speedXValue">0.2</span></label>
+      <input type="range" id="speedX" min="-1" max="1" step="0.01" value="0.2">
+      
+      <label for="speedY">Speed Y: <span id="speedYValue">0.1</span></label>
+      <input type="range" id="speedY" min="-1" max="1" step="0.01" value="0.1">
+      
+      <label for="rotation">Rotation Speed: <span id="rotationValue">0.01</span></label>
+      <input type="range" id="rotation" min="-0.05" max="0.05" step="0.001" value="0.01">
+      
+      <label for="randomDirections">
+        <input type="checkbox" id="randomDirections" checked> Enable random direction changes
+      </label>
+      
+      <label for="directionChangeFrequency">Change Frequency: <span id="directionChangeFrequencyValue">5.0</span>s</label>
+      <input type="range" id="directionChangeFrequency" min="1" max="20" step="0.1" value="5.0">
+    </div>
+    
+    <div class="control-group">
+      <h3>Secondary Effects</h3>
+      <label for="layersCount">Texture Layers: <span id="layersCountValue">3</span></label>
+      <input type="range" id="layersCount" min="1" max="5" step="1" value="3">
+      
+      <label for="distortionEnabled">
+        <input type="checkbox" id="distortionEnabled" checked> Enable distortion
+      </label>
+      
+      <label for="distortionScale">Distortion Scale: <span id="distortionScaleValue">0.3</span></label>
+      <input type="range" id="distortionScale" min="0" max="1" step="0.01" value="0.3">
+      
+      <label for="pulseEnabled">
+        <input type="checkbox" id="pulseEnabled"> Enable pulsating effect
+      </label>
+      
+      <label for="pulseSpeed">Pulse Speed: <span id="pulseSpeedValue">0.5</span></label>
+      <input type="range" id="pulseSpeed" min="0.1" max="2" step="0.1" value="0.5">
+    </div>
+    
+    <button id="randomize">Generate Random</button>
+  </div>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    // Main variables
+    let camera, scene, renderer, uniforms, material, mesh;
+    let time = 0;
+    let lastDirectionChangeTime = 0;
+    let isChangingDirection = false;
+    let targetSpeedX, targetSpeedY, targetRotation;
+    let currentSpeedX, currentSpeedY, currentRotation;
+    
+    // Setup controls
+    const controls = {
+      // Colors
+      color1: document.getElementById('color1'),
+      color2: document.getElementById('color2'),
+      color3: document.getElementById('color3'),
+      useThirdColor: document.getElementById('useThirdColor'),
+      
+      // Texture
+      textureType: document.getElementById('textureType'),
+      noiseScale: document.getElementById('noiseScale'),
+      noiseIntensity: document.getElementById('noiseIntensity'),
+      noiseScaleValue: document.getElementById('noiseScaleValue'),
+      noiseIntensityValue: document.getElementById('noiseIntensityValue'),
+      
+      // Depth & Movement
+      depthEnabled: document.getElementById('depthEnabled'),
+      depthIntensity: document.getElementById('depthIntensity'),
+      depthIntensityValue: document.getElementById('depthIntensityValue'),
+      heightScale: document.getElementById('heightScale'),
+      heightScaleValue: document.getElementById('heightScaleValue'),
+      speedX: document.getElementById('speedX'),
+      speedY: document.getElementById('speedY'),
+      rotation: document.getElementById('rotation'),
+      speedXValue: document.getElementById('speedXValue'),
+      speedYValue: document.getElementById('speedYValue'),
+      rotationValue: document.getElementById('rotationValue'),
+      randomDirections: document.getElementById('randomDirections'),
+      directionChangeFrequency: document.getElementById('directionChangeFrequency'),
+      directionChangeFrequencyValue: document.getElementById('directionChangeFrequencyValue'),
+      
+      // Secondary Effects
+      layersCount: document.getElementById('layersCount'),
+      layersCountValue: document.getElementById('layersCountValue'),
+      distortionEnabled: document.getElementById('distortionEnabled'),
+      distortionScale: document.getElementById('distortionScale'),
+      distortionScaleValue: document.getElementById('distortionScaleValue'),
+      pulseEnabled: document.getElementById('pulseEnabled'),
+      pulseSpeed: document.getElementById('pulseSpeed'),
+      pulseSpeedValue: document.getElementById('pulseSpeedValue'),
+      
+      // UI elements
+      randomize: document.getElementById('randomize'),
+      toggleControls: document.getElementById('toggleControls'),
+      controlsPanel: document.getElementById('controls')
+    };
+    
+    // Initialize everything
+    init();
+    animate();
+    setupEventListeners();
+    
+    function init() {
+      // Setup camera
+      camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      
+      // Create scene
+      scene = new THREE.Scene();
+      
+      // Set initial movement values
+      currentSpeedX = parseFloat(controls.speedX.value);
+      currentSpeedY = parseFloat(controls.speedY.value);
+      currentRotation = parseFloat(controls.rotation.value);
+      targetSpeedX = currentSpeedX;
+      targetSpeedY = currentSpeedY;
+      targetRotation = currentRotation;
+      
+      // Create shader uniforms
+      uniforms = {
+        u_time: { value: 0 },
+        u_resolution: { value: new THREE.Vector2() },
+        u_color1: { value: hexToRgb(controls.color1.value) },
+        u_color2: { value: hexToRgb(controls.color2.value) },
+        u_color3: { value: hexToRgb(controls.color3.value) },
+        u_useThirdColor: { value: controls.useThirdColor.checked ? 1.0 : 0.0 },
+        u_textureType: { value: 0 }, // 0: noise, 1: cells, 2: waves, 3: marble, 4: ridged
+        u_noiseScale: { value: parseFloat(controls.noiseScale.value) },
+        u_noiseIntensity: { value: parseFloat(controls.noiseIntensity.value) },
+        u_depthEnabled: { value: controls.depthEnabled.checked ? 1.0 : 0.0 },
+        u_depthIntensity: { value: parseFloat(controls.depthIntensity.value) },
+        u_heightScale: { value: parseFloat(controls.heightScale.value) },
+        u_speedX: { value: currentSpeedX },
+        u_speedY: { value: currentSpeedY },
+        u_rotation: { value: currentRotation },
+        u_layersCount: { value: parseInt(controls.layersCount.value) },
+        u_distortionEnabled: { value: controls.distortionEnabled.checked ? 1.0 : 0.0 },
+        u_distortionScale: { value: parseFloat(controls.distortionScale.value) },
+        u_pulseEnabled: { value: controls.pulseEnabled.checked ? 1.0 : 0.0 },
+        u_pulseSpeed: { value: parseFloat(controls.pulseSpeed.value) }
+      };
+      
+      // Create shader material
+      material = new THREE.ShaderMaterial({
+        uniforms: uniforms,
+        vertexShader: `
+          varying vec2 vUv;
+          
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform float u_time;
+          uniform vec2 u_resolution;
+          uniform vec3 u_color1;
+          uniform vec3 u_color2;
+          uniform vec3 u_color3;
+          uniform float u_useThirdColor;
+          uniform int u_textureType;
+          uniform float u_noiseScale;
+          uniform float u_noiseIntensity;
+          uniform float u_depthEnabled;
+          uniform float u_depthIntensity;
+          uniform float u_heightScale;
+          uniform float u_speedX;
+          uniform float u_speedY;
+          uniform float u_rotation;
+          uniform int u_layersCount;
+          uniform float u_distortionEnabled;
+          uniform float u_distortionScale;
+          uniform float u_pulseEnabled;
+          uniform float u_pulseSpeed;
+          
+          varying vec2 vUv;
+          
+          // Simple hash function
+          float hash(vec2 p) {
+            p = fract(p * vec2(123.34, 456.21));
+            p += dot(p, p + 45.32);
+            return fract(p.x * p.y);
+          }
+          
+          // Simple 2D noise function
+          float noise(vec2 st) {
+            vec2 i = floor(st);
+            vec2 f = fract(st);
+            
+            // Four corners
+            float a = hash(i);
+            float b = hash(i + vec2(1.0, 0.0));
+            float c = hash(i + vec2(0.0, 1.0));
+            float d = hash(i + vec2(1.0, 1.0));
+            
+            // Smooth interpolation
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            
+            return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+          }
+          
+          // Cellular/Voronoi pattern
+          float cellular(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            
+            float minDist = 1.0;
+            
+            // Check neighboring cells and current cell
+            for(int y = -1; y <= 1; y++) {
+              for(int x = -1; x <= 1; x++) {
+                vec2 neighbor = vec2(float(x), float(y));
+                vec2 point = vec2(hash(i + neighbor) * 0.5 + 0.5);                
+                vec2 diff = neighbor + point - f;
+                float dist = length(diff);
+                minDist = min(minDist, dist);
+              }
+            }
+            
+            return minDist;
+          }
+          
+          // Wave pattern
+          float waves(vec2 p) {
+            return 0.5 + 0.5 * sin(p.x * 10.0) * sin(p.y * 10.0);
+          }
+          
+          // Marble texture
+          float marble(vec2 p) {
+            return 0.5 + 0.5 * sin(p.x * 3.0 + 5.0 * noise(p * 0.1));
+          }
+          
+          // Ridged noise
+          float ridged(vec2 p) {
+            return 1.0 - 2.0 * abs(noise(p) - 0.5);
+          }
+          
+          // Select texture type based on uniform
+          float getTexture(vec2 p) {
+            if (u_textureType == 0) return noise(p);
+            else if (u_textureType == 1) return cellular(p);
+            else if (u_textureType == 2) return waves(p);
+            else if (u_textureType == 3) return marble(p);
+            else return ridged(p);
+          }
+          
+// FBM (Fractal Brownian Motion)
+float fbm(vec2 st) {
+    float value = 0.0;
+    float amplitude = 0.5;
+    float frequency = 1.0;
+    
+    for (int i = 0; i < 5; i++) {
+        if (i >= u_layersCount) break;
+        
+        value += amplitude * getTexture(st * frequency);
+        // FIXED LINE: Create a proper vec2 from the scalar value
+        st = st * 2.0 + vec2(value * u_distortionEnabled * u_distortionScale, value * u_distortionEnabled * u_distortionScale);
+        amplitude *= 0.5;
+        frequency *= 2.0;
+    }
+    
+    return value;
+}
+          
+          // Rotation function
+          vec2 rotate(vec2 uv, float angle) {
+            float s = sin(angle);
+            float c = cos(angle);
+            mat2 rotationMatrix = mat2(c, -s, s, c);
+            return rotationMatrix * (uv - 0.5) + 0.5;
+          }
+          
+          void main() {
+            // Adjust aspect ratio
+            vec2 st = vUv;
+            st.x *= u_resolution.x / u_resolution.y;
+            
+            // Pulsating effect
+            float pulse = 1.0;
+            if (u_pulseEnabled > 0.5) {
+              pulse = 1.0 + 0.2 * sin(u_time * u_pulseSpeed);
+            }
+            
+            // Rotate the coordinates
+            st = rotate(st, u_time * u_rotation);
+            
+            // Moving coordinates for the texture
+            vec2 moving_st = st + vec2(u_time * u_speedX, u_time * u_speedY);
+            
+            // Generate texture
+            float baseTexture = fbm(moving_st * u_noiseScale) * u_noiseIntensity;
+            
+            // Create gradient
+            float gradient = length(st - vec2(0.5 * u_resolution.x / u_resolution.y, 0.5));
+            gradient = smoothstep(0.0, 1.0, gradient * pulse);
+            
+            // Create depth effect
+            float depth = 0.0;
+            if (u_depthEnabled > 0.5) {
+              vec2 depth_st = moving_st * u_noiseScale * 0.5;
+              depth = fbm(depth_st) * u_depthIntensity;
+              
+              // Add height effect
+              if (u_heightScale > 0.0) {
+                // Calculate normal from heightmap for a simple lighting effect
+                float eps = 0.01;
+                float north = fbm((depth_st + vec2(0.0, eps)));
+                float east = fbm((depth_st + vec2(eps, 0.0)));
+                vec3 normal = normalize(vec3(-(east - depth), -(north - depth), 1.0));
+                
+                // Simple directional light
+                vec3 lightDir = normalize(vec3(0.5, 0.5, 1.0));
+                float diffuse = max(0.0, dot(normal, lightDir));
+                
+                depth += diffuse * u_heightScale;
+              }
+            }
+            
+            // Mix texture with gradient and add depth effect
+            float finalMix = mix(gradient, baseTexture, 0.5) + depth;
+            
+            // Color mixing
+            vec3 color;
+            if (u_useThirdColor > 0.5) {
+              // Three-color gradient
+              if (finalMix < 0.33) {
+                color = mix(u_color1, u_color2, finalMix * 3.0);
+              } else if (finalMix < 0.66) {
+                color = mix(u_color2, u_color3, (finalMix - 0.33) * 3.0);
+              } else {
+                color = mix(u_color3, u_color1, (finalMix - 0.66) * 3.0);
+              }
+            } else {
+              // Two-color gradient
+              color = mix(u_color1, u_color2, finalMix);
+            }
+            
+            // Apply texture effect
+            color += baseTexture * 0.1;
+            
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `
+      });
+      
+      // Create geometry and mesh
+      const geometry = new THREE.PlaneGeometry(2, 2);
+      mesh = new THREE.Mesh(geometry, material);
+      scene.add(mesh);
+      
+      // Setup renderer
+      renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      
+      // Update uniforms with resolution
+      onWindowResize();
+      
+      // Add window resize event listener
+      window.addEventListener('resize', onWindowResize);
+      
+      // Update texture type from select
+      updateTextureType();
+    }
+    
+    function setupEventListeners() {
+      // Color pickers
+      controls.color1.addEventListener('input', () => {
+        uniforms.u_color1.value = hexToRgb(controls.color1.value);
+      });
+      
+      controls.color2.addEventListener('input', () => {
+        uniforms.u_color2.value = hexToRgb(controls.color2.value);
+      });
+      
+      controls.color3.addEventListener('input', () => {
+        uniforms.u_color3.value = hexToRgb(controls.color3.value);
+      });
+      
+      controls.useThirdColor.addEventListener('change', () => {
+        uniforms.u_useThirdColor.value = controls.useThirdColor.checked ? 1.0 : 0.0;
+      });
+      
+      // Texture type
+      controls.textureType.addEventListener('change', updateTextureType);
+      
+      // Sliders and checkboxes
+      controls.noiseScale.addEventListener('input', () => {
+        const value = parseFloat(controls.noiseScale.value);
+        uniforms.u_noiseScale.value = value;
+        controls.noiseScaleValue.textContent = value.toFixed(1);
+      });
+      
+      controls.noiseIntensity.addEventListener('input', () => {
+        const value = parseFloat(controls.noiseIntensity.value);
+        uniforms.u_noiseIntensity.value = value;
+        controls.noiseIntensityValue.textContent = value.toFixed(2);
+      });
+      
+      // Depth controls
+      controls.depthEnabled.addEventListener('change', () => {
+        uniforms.u_depthEnabled.value = controls.depthEnabled.checked ? 1.0 : 0.0;
+      });
+      
+      controls.depthIntensity.addEventListener('input', () => {
+        const value = parseFloat(controls.depthIntensity.value);
+        uniforms.u_depthIntensity.value = value;
+        controls.depthIntensityValue.textContent = value.toFixed(2);
+      });
+      
+      controls.heightScale.addEventListener('input', () => {
+        const value = parseFloat(controls.heightScale.value);
+        uniforms.u_heightScale.value = value;
+        controls.heightScaleValue.textContent = value.toFixed(2);
+      });
+      
+      // Movement controls
+      controls.speedX.addEventListener('input', () => {
+        const value = parseFloat(controls.speedX.value);
+        targetSpeedX = value;
+        controls.speedXValue.textContent = value.toFixed(2);
+      });
+      
+      controls.speedY.addEventListener('input', () => {
+        const value = parseFloat(controls.speedY.value);
+        targetSpeedY = value;
+        controls.speedYValue.textContent = value.toFixed(2);
+      });
+      
+      controls.rotation.addEventListener('input', () => {
+        const value = parseFloat(controls.rotation.value);
+        targetRotation = value;
+        controls.rotationValue.textContent = value.toFixed(3);
+      });
+      
+      controls.directionChangeFrequency.addEventListener('input', () => {
+        const value = parseFloat(controls.directionChangeFrequency.value);
+        controls.directionChangeFrequencyValue.textContent = value.toFixed(1);
+      });
+      
+      // Layers count
+      controls.layersCount.addEventListener('input', () => {
+        const value = parseInt(controls.layersCount.value);
+        uniforms.u_layersCount.value = value;
+        controls.layersCountValue.textContent = value;
+      });
+      
+      // Distortion controls
+      controls.distortionEnabled.addEventListener('change', () => {
+        uniforms.u_distortionEnabled.value = controls.distortionEnabled.checked ? 1.0 : 0.0;
+      });
+      
+      controls.distortionScale.addEventListener('input', () => {
+        const value = parseFloat(controls.distortionScale.value);
+        uniforms.u_distortionScale.value = value;
+        controls.distortionScaleValue.textContent = value.toFixed(2);
+      });
+      
+      // Pulse controls
+      controls.pulseEnabled.addEventListener('change', () => {
+        uniforms.u_pulseEnabled.value = controls.pulseEnabled.checked ? 1.0 : 0.0;
+      });
+      
+      controls.pulseSpeed.addEventListener('input', () => {
+        const value = parseFloat(controls.pulseSpeed.value);
+        uniforms.u_pulseSpeed.value = value;
+        controls.pulseSpeedValue.textContent = value.toFixed(1);
+      });
+      
+      // Randomize button
+      controls.randomize.addEventListener('click', randomizeSettings);
+      
+      // Toggle controls panel on mobile
+      controls.toggleControls.addEventListener('click', () => {
+        const panel = controls.controlsPanel;
+        if (panel.style.display === 'none' || panel.style.display === '') {
+          panel.style.display = 'block';
+          controls.toggleControls.textContent = 'Hide Controls';
+        } else {
+          panel.style.display = 'none';
+          controls.toggleControls.textContent = 'Show Controls';
+        }
+      });
+    }
+    
+    function updateTextureType() {
+      const textureMap = {
+        'noise': 0,
+        'cells': 1,
+        'waves': 2,
+        'marble': 3,
+        'ridged': 4
+      };
+      
+      uniforms.u_textureType.value = textureMap[controls.textureType.value];
+    }
+    
+    function randomizeSettings() {
+      // Random colors
+      const randomColor1 = getRandomHexColor();
+      const randomColor2 = getRandomHexColor();
+      const randomColor3 = getRandomHexColor();
+      controls.color1.value = randomColor1;
+      controls.color2.value = randomColor2;
+      controls.color3.value = randomColor3;
+      uniforms.u_color1.value = hexToRgb(randomColor1);
+      uniforms.u_color2.value = hexToRgb(randomColor2);
+      uniforms.u_color3.value = hexToRgb(randomColor3);
+      
+      // Random third color usage
+      controls.useThirdColor.checked = Math.random() > 0.5;
+      uniforms.u_useThirdColor.value = controls.useThirdColor.checked ? 1.0 : 0.0;
+      
+      // Random texture type
+      const textureTypes = ['noise', 'cells', 'waves', 'marble', 'ridged'];
+      controls.textureType.value = textureTypes[Math.floor(Math.random() * textureTypes.length)];
+      updateTextureType();
+      
+      // Random texture parameters
+      const noiseScale = Math.random() * 19 + 1; // Between 1 and 20
+      controls.noiseScale.value = noiseScale;
+      uniforms.u_noiseScale.value = noiseScale;
+      controls.noiseScaleValue.textContent = noiseScale.toFixed(1);
+      
+      const noiseIntensity = Math.random() * 2; // Between 0 and 2
+      controls.noiseIntensity.value = noiseIntensity;
+      uniforms.u_noiseIntensity.value = noiseIntensity;
+      controls.noiseIntensityValue.textContent = noiseIntensity.toFixed(2);
+      
+      // Random depth settings
+      controls.depthEnabled.checked = Math.random() > 0.3; // 70% chance to enable
+      uniforms.u_depthEnabled.value = controls.depthEnabled.checked ? 1.0 : 0.0;
+      
+      const depthIntensity = Math.random(); // Between 0 and 1
+      controls.depthIntensity.value = depthIntensity;
+      uniforms.u_depthIntensity.value = depthIntensity;
+      controls.depthIntensityValue.textContent = depthIntensity.toFixed(2);
+      
+      const heightScale = Math.random(); // Between 0 and 1
+      controls.heightScale.value = heightScale;
+      uniforms.u_heightScale.value = heightScale;
+      controls.heightScaleValue.textContent = heightScale.toFixed(2);
+      
+      // Random movement settings
+      const speedX = Math.random() * 2 - 1; // Between -1 and 1
+      controls.speedX.value = speedX;
+      targetSpeedX = speedX;
+      controls.speedXValue.textContent = speedX.toFixed(2);
+      
+      const speedY = Math.random() * 2 - 1;
+      controls.speedY.value = speedY;
+      targetSpeedY = speedY;
+      currentSpeedY = speedY;
+      controls.speedYValue.textContent = speedY.toFixed(2);
+
+      // Random rotation speed
+      const rotation = (Math.random() * 0.1) - 0.05;
+      controls.rotation.value = rotation;
+      targetRotation = rotation;
+      currentRotation = rotation;
+      controls.rotationValue.textContent = rotation.toFixed(3);
+
+      // Random direction change frequency
+      const directionChangeFreq = Math.random() * 19 + 1;
+      controls.directionChangeFrequency.value = directionChangeFreq;
+      controls.directionChangeFrequencyValue.textContent = directionChangeFreq.toFixed(1);
+
+      // Layers count
+      const layers = Math.floor(Math.random() * 5) + 1;
+      controls.layersCount.value = layers;
+      uniforms.u_layersCount.value = layers;
+      controls.layersCountValue.textContent = layers;
+
+      // Distortion controls
+      controls.distortionEnabled.checked = Math.random() > 0.5;
+      uniforms.u_distortionEnabled.value = controls.distortionEnabled.checked ? 1.0 : 0.0;
+
+      const distortionScale = Math.random();
+      controls.distortionScale.value = distortionScale;
+      uniforms.u_distortionScale.value = distortionScale;
+      controls.distortionScaleValue.textContent = distortionScale.toFixed(2);
+
+      // Pulse controls
+      controls.pulseEnabled.checked = Math.random() > 0.5;
+      uniforms.u_pulseEnabled.value = controls.pulseEnabled.checked ? 1.0 : 0.0;
+
+      const pulseSpeed = Math.random() * 1.9 + 0.1;
+      controls.pulseSpeed.value = pulseSpeed;
+      uniforms.u_pulseSpeed.value = pulseSpeed;
+      controls.pulseSpeedValue.textContent = pulseSpeed.toFixed(1);
+
+      // Random directions checkbox
+      controls.randomDirections.checked = Math.random() > 0.5;
+    }
+
+    function hexToRgb(hex) {
+      const r = parseInt(hex.substring(1, 3), 16) / 255;
+      const g = parseInt(hex.substring(3, 5), 16) / 255;
+      const b = parseInt(hex.substring(5, 7), 16) / 255;
+      return new THREE.Vector3(r, g, b);
+    }
+
+    function getRandomHexColor() {
+      return '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+    }
+
+    function onWindowResize() {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      uniforms.u_resolution.value.set(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      time += 0.01;
+      uniforms.u_time.value = time;
+
+      // Handle random direction changes
+      if (controls.randomDirections.checked) {
+        if (time - lastDirectionChangeTime > parseFloat(controls.directionChangeFrequency.value)) {
+          targetSpeedX = (Math.random() * 2 - 1) * 0.5;
+          targetSpeedY = (Math.random() * 2 - 1) * 0.5;
+          targetRotation = (Math.random() * 0.1 - 0.05);
+          lastDirectionChangeTime = time;
+        }
+
+        // Smooth interpolation
+        currentSpeedX += (targetSpeedX - currentSpeedX) * 0.1;
+        currentSpeedY += (targetSpeedY - currentSpeedY) * 0.1;
+        currentRotation += (targetRotation - currentRotation) * 0.1;
+        
+        uniforms.u_speedX.value = currentSpeedX;
+        uniforms.u_speedY.value = currentSpeedY;
+        uniforms.u_rotation.value = currentRotation;
+      }
+
+      renderer.render(scene, camera);
+    }
+  </script>
+</body>
+</html>
