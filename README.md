@@ -8,3 +8,4 @@ Juste des trucs en vrac.
 - gameoflife.html : [Game of Life](https://fr.wikipedia.org/wiki/Jeu_de_la_vie) en 3D avec des stats sur chaque génération
 - fight.html : Un idle game simple de combat entre 2 personnages
 - textures.html : Générateur de dégradés texturés
+- clouds.html : Générateur de nuages qui bougent dans le ciel (fonctionne moyen, quelques bugs)
