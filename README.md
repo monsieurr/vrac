@@ -9,3 +9,4 @@ Juste des trucs en vrac.
 - fight.html : Un idle game simple de combat entre 2 personnages
 - textures.html : Générateur de dégradés texturés
 - clouds.html : Générateur de nuages qui bougent dans le ciel (fonctionne moyen, quelques bugs)
+- pool.html : Une piscine, des ballons, du fun
