@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tropical Pool Party</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { cursor: crosshair; }
+    </style>
+</head>
+<body>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.163.0/build/three.module.js",
+                "cannon": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import * as CANNON from 'cannon';
+
+        class PoolScene {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.clock = new THREE.Clock();
+                this.balloons = [];
+                this.physicsWorld = new CANNON.World();
+                this.physicsWorld.gravity.set(0, -9.82, 0);
+                
+                this.initScene();
+                this.initPhysics();
+                this.initWater();
+                this.initLighting();
+                this.createEnvironment();
+                this.initEventListeners();
+                this.animate();
+            }
+
+            initScene() {
+                // Renderer
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                document.body.appendChild(this.renderer.domElement);
+
+                // Camera
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+                this.camera.position.set(10, 8, 15);
+                this.camera.lookAt(0, 0, 0);
+
+                // Sky
+                this.scene.background = new THREE.Color(0x87CEEB);
+            }
+
+            initLighting() {
+                // Ambient light
+                const ambient = new THREE.AmbientLight(0xffffff, 0.8);
+                this.scene.add(ambient);
+
+                // Directional light (sun)
+                const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+                sunLight.position.set(5, 15, 5);
+                sunLight.castShadow = true;
+                sunLight.shadow.mapSize.width = 2048;
+                sunLight.shadow.mapSize.height = 2048;
+                this.scene.add(sunLight);
+            }
+
+            createEnvironment() {
+                // Sand with shader
+                const sandGeometry = new THREE.PlaneGeometry(40, 40, 128, 128);
+                const sandMaterial = new THREE.ShaderMaterial({
+                    vertexShader: `
+                        varying vec2 vUv;
+                        void main() {
+                            vUv = uv;
+                            vec3 pos = position;
+                            pos.y += sin(pos.x * 50.0) * 0.02 + sin(pos.z * 50.0) * 0.02;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        varying vec2 vUv;
+                        void main() {
+                            vec3 sandColor = mix(vec3(0.96, 0.87, 0.7), vec3(0.92, 0.83, 0.65), smoothstep(0.3, 0.7, fract(vUv.x * 10.0));
+                            gl_FragColor = vec4(sandColor, 1.0);
+                        }
+                    `
+                });
+                const sand = new THREE.Mesh(sandGeometry, sandMaterial);
+                sand.rotation.x = -Math.PI / 2;
+                sand.receiveShadow = true;
+                this.scene.add(sand);
+
+                // Pool
+                this.createPool();
+                
+                // Palms
+                this.createPalmetto(-4, 0, 4);
+                this.createPalmetto(5, 0, -5);
+                this.createPalmetto(6, 0, 5);
+            }
+
+            createPool() {
+                const poolGroup = new THREE.Group();
+                const width = 4, depth = 6, height = 0.8;
+
+                // Pool walls
+                const wallMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x00ffff,
+                    metalness: 0.2,
+                    roughness: 0.1
+                });
+
+                const createWall = (w, h, d, pos) => {
+                    const geometry = new THREE.BoxGeometry(w, h, d);
+                    const wall = new THREE.Mesh(geometry, wallMaterial);
+                    wall.position.set(...pos);
+                    wall.castShadow = true;
+                    poolGroup.add(wall);
+                };
+
+                createWall(width + 0.4, height, 0.2, [0, height/2, -depth/2 - 0.1]); // Back
+                createWall(width + 0.4, height, 0.2, [0, height/2, depth/2 + 0.1]); // Front
+                createWall(0.2, height, depth, [-width/2 - 0.1, height/2, 0]); // Left
+                createWall(0.2, height, depth, [width/2 + 0.1, height/2, 0]); // Right
+
+                // Pool bottom
+                const bottom = new THREE.Mesh(
+                    new THREE.BoxGeometry(width, 0.2, depth),
+                    new THREE.MeshStandardMaterial({ color: 0x008888 })
+                );
+                bottom.position.y = -0.1;
+                poolGroup.add(bottom);
+
+                this.scene.add(poolGroup);
+            }
+
+            createPalmetto(x, y, z) {
+                // Trunk
+                const trunk = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.15, 0.2, 2.5, 8),
+                    new THREE.MeshStandardMaterial({ color: 0x4a3728 })
+                );
+                trunk.position.set(x, 1.25, z);
+                trunk.castShadow = true;
+
+                // Leaves
+                const leaves = new THREE.Group();
+                const leafMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x2d5a27,
+                    side: THREE.DoubleSide
+                });
+
+                for(let i = 0; i < 12; i++) {
+                    const leaf = new THREE.Mesh(
+                        new THREE.PlaneGeometry(1.8, 0.6),
+                        leafMaterial
+                    );
+                    const angle = (Math.PI * 2 * i) / 12;
+                    leaf.rotation.set(
+                        Math.PI/3,
+                        angle,
+                        Math.PI/4 + Math.random() * 0.2
+                    );
+                    leaf.position.set(
+                        x + Math.cos(angle) * 0.4,
+                        2.5,
+                        z + Math.sin(angle) * 0.4
+                    );
+                    leaves.add(leaf);
+                }
+
+                // Palm group
+                const palm = new THREE.Group();
+                palm.add(trunk, leaves);
+                palm.traverse(child => child.castShadow = true);
+                this.scene.add(palm);
+            }
+
+            initPhysics() {
+                // Water physics body (limited to pool area)
+                this.waterBody = new CANNON.Body({
+                    mass: 0,
+                    shape: new CANNON.Box(new CANNON.Vec3(2, 0.1, 3)),
+                    position: new CANNON.Vec3(0, 0.6, 0),
+                    material: new CANNON.Material('water')
+                });
+                this.physicsWorld.addBody(this.waterBody);
+
+                // Ground physics
+                this.groundBody = new CANNON.Body({
+                    mass: 0,
+                    shape: new CANNON.Plane(),
+                    material: new CANNON.Material('ground')
+                });
+                this.groundBody.quaternion.setFromEuler(-Math.PI/2, 0, 0);
+                this.physicsWorld.addBody(this.groundBody);
+
+                // Contact materials
+                const waterBalloonCM = new CANNON.ContactMaterial(
+                    this.waterBody.material,
+                    new CANNON.Material('balloon'),
+                    { friction: 0.1, restitution: 0.3 }
+                );
+                this.physicsWorld.addContactMaterial(waterBalloonCM);
+            }
+
+            initWater() {
+                const waterGeometry = new THREE.PlaneGeometry(4, 6, 128, 128);
+                
+                this.waterMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        time: { value: 0 },
+                        foamTex: { 
+                            value: new THREE.TextureLoader().load(
+                                'https://threejs.org/examples/textures/waternormals.jpg'
+                            )
+                        }
+                    },
+                    vertexShader: `
+                        varying vec3 vPosition;
+                        varying vec2 vUv;
+                        uniform float time;
+                        
+                        void main() {
+                            vUv = uv;
+                            vec3 pos = position;
+                            pos.y += sin(pos.x * 10.0 + time * 2.0) * 0.1 
+                                    + sin(pos.z * 8.0 + time * 1.5) * 0.08;
+                            vPosition = pos;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        varying vec3 vPosition;
+                        varying vec2 vUv;
+                        uniform sampler2D foamTex;
+                        uniform float time;
+                        
+                        void main() {
+                            vec3 baseColor = vec3(0.0, 0.8, 1.0);
+                            vec3 foamColor = texture2D(foamTex, vUv * 2.0 + time * 0.1).rgb;
+                            float depth = smoothstep(0.5, 0.0, vPosition.y);
+                            
+                            vec3 finalColor = mix(baseColor, foamColor, depth * 0.5);
+                            finalColor += sin(time * 2.0 + vPosition.x * 10.0) * 0.1;
+                            
+                            gl_FragColor = vec4(finalColor, 0.9 - depth * 0.5);
+                        }
+                    `,
+                    transparent: true,
+                });
+
+                this.water = new THREE.Mesh(waterGeometry, this.waterMaterial);
+                this.water.rotation.x = -Math.PI / 2;
+                this.water.position.y = 0.6;
+                this.water.receiveShadow = true;
+                this.scene.add(this.water);
+            }
+
+            createBalloon(position) {
+                // Three.js mesh
+                const geometry = new THREE.SphereGeometry(0.3, 32, 32);
+                const material = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color().setHSL(Math.random(), 0.9, 0.7),
+                    metalness: 0.3,
+                    roughness: 0.1
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.castShadow = true;
+                mesh.position.copy(position);
+                this.scene.add(mesh);
+
+                // Physics body
+                const body = new CANNON.Body({
+                    mass: 0.8,
+                    shape: new CANNON.Sphere(0.3),
+                    material: new CANNON.Material('balloon')
+                });
+                body.position.copy(position);
+                body.linearDamping = 0.2;
+                body.angularDamping = 0.5;
+                this.physicsWorld.addBody(body);
+
+                // Collision handler
+                body.addEventListener('collide', (e) => {
+                    if(e.body === this.waterBody) {
+                        this.applyBuoyancyForce(body);
+                        this.createSplash(body.position);
+                    }
+                });
+
+                // Initial force
+                body.applyImpulse(
+                    new CANNON.Vec3(
+                        (Math.random() - 0.5) * 2,
+                        5 + Math.random() * 3,
+                        (Math.random() - 0.5) * 2
+                    ),
+                    new CANNON.Vec3(0, 0, 0)
+                );
+
+                this.balloons.push({ mesh, body });
+            }
+
+            applyBuoyancyForce(body) {
+                const waterHeight = this.waterBody.position.y;
+                const submerged = waterHeight - body.position.y + 0.3;
+                if(submerged > 0) {
+                    const buoyancyForce = submerged * 4;
+                    body.applyForce(
+                        new CANNON.Vec3(0, buoyancyForce, 0),
+                        body.position
+                    );
+                }
+            }
+
+            createSplash(position) {
+                const splashGeometry = new THREE.BufferGeometry();
+                const vertices = [];
+                for(let i = 0; i < 50; i++) {
+                    vertices.push(
+                        position.x + (Math.random() - 0.5) * 0.5,
+                        position.y + Math.random() * 0.2,
+                        position.z + (Math.random() - 0.5) * 0.5
+                    );
+                }
+                splashGeometry.setAttribute('position', 
+                    new THREE.Float32BufferAttribute(vertices, 3));
+
+                const splashMaterial = new THREE.PointsMaterial({
+                    color: 0x00ffff,
+                    size: 0.1,
+                    transparent: true,
+                    opacity: 0.7
+                });
+
+                const splash = new THREE.Points(splashGeometry, splashMaterial);
+                this.scene.add(splash);
+                setTimeout(() => this.scene.remove(splash), 500);
+            }
+
+            initEventListeners() {
+                window.addEventListener('click', (e) => this.onClick(e));
+                window.addEventListener('resize', () => this.onResize());
+            }
+
+            onClick(event) {
+                const raycaster = new THREE.Raycaster();
+                const mouse = new THREE.Vector2(
+                    (event.clientX / window.innerWidth) * 2 - 1,
+                    -(event.clientY / window.innerHeight) * 2 + 1
+                );
+                raycaster.setFromCamera(mouse, this.camera);
+                
+                const intersects = raycaster.intersectObjects(this.scene.children);
+                if(intersects.length > 0) {
+                    const point = intersects[0].point.clone();
+                    point.y += 0.5;
+                    this.createBalloon(point);
+                }
+            }
+
+            onResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                const delta = this.clock.getDelta();
+                
+                // Update physics
+                this.physicsWorld.step(1/60, delta, 3);
+                
+                // Update water shader
+                this.waterMaterial.uniforms.time.value += delta;
+                
+                // Sync balloons
+                this.balloons.forEach(balloon => {
+                    balloon.mesh.position.copy(balloon.body.position);
+                    balloon.mesh.quaternion.copy(balloon.body.quaternion);
+                });
+
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        new PoolScene();
+    </script>
+</body>
+</html>
