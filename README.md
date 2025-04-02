@@ -11,3 +11,4 @@ Juste des trucs en vrac.
 - clouds.html : Générateur de nuages qui bougent dans le ciel (fonctionne moyen, quelques bugs)
 - pool.html : Une piscine, des ballons, du fun
 - gridgen.html : Génère des éléments sur une grille de manière aléatoire, copie des propriété des éléments (CSS) possible.
+- light.html : Une pièce, une lampe, un cube, une sphère et la possibilité d'appuyer sur le bouton.
