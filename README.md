@@ -10,3 +10,4 @@ Juste des trucs en vrac.
 - textures.html : Générateur de dégradés texturés
 - clouds.html : Générateur de nuages qui bougent dans le ciel (fonctionne moyen, quelques bugs)
 - pool.html : Une piscine, des ballons, du fun
+- gridgen.html : Génère des éléments sur une grille de manière aléatoire, copie des propriété des éléments (CSS) possible.
