@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Win95 Maze Screensaver Replica++</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Hide scrollbars */
+            background-color: #000; /* Black background */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        canvas {
+            display: block; /* Prevent inline spacing issues */
+            transition: opacity 0.5s ease;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-family: monospace;
+            z-index: 100;
+            display: block;
+            text-shadow: 1px 1px 2px black; /* Add shadow for better readability */
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+        #error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: red;
+            font-family: sans-serif;
+            font-size: 1.5em;
+            background-color: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 200;
+            display: none; /* Hidden by default */
+            text-align: center;
+        }
+        #stats {
+            position: absolute;
+            top: 40px;
+            right: 10px;
+            color: lime;
+            font-family: monospace;
+            font-size: 0.8em;
+            text-align: right;
+            z-index: 100;
+            display: block;
+            text-shadow: 1px 1px 2px black;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 5px;
+            border-radius: 5px;
+            opacity: 0.7;
+            white-space: pre; /* Preserve line breaks */
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 1.2em;
+            background-color: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 150;
+            display: none; /* Hidden initially */
+        }
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            font-size: 0.8em;
+            background-color: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+        #controls:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Windows 95 Maze Screensaver Replica++ (Generating...)</div>
+    <div id="stats">FPS: --<br>Cells: --/--</div>
+    <div id="error"></div>
+    <div id="loading">Generating maze...</div>
+    <div id="controls">
+        Space: New Maze | R: Reset Position | ESC: Toggle UI
+    </div>
+    <canvas id="mazeCanvas"></canvas>
+
+    <!-- Import Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.163.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- Configuration ---
+        const CONFIG = {
+            // Maze properties
+            MAZE_WIDTH: 17, // Odd number recommended
+            MAZE_HEIGHT: 17, // Odd number recommended
+            CELL_SIZE: 10,
+            WALL_HEIGHT: 8,
+            WALL_THICKNESS: 1.0,
+            // Movement
+            MOVE_SPEED: 7.0, // Slightly faster movement
+            TURN_SPEED: Math.PI / 1.5, // Slightly faster turning
+            // Visual
+            TEXTURE_REPEAT_X: 1,
+            TEXTURE_REPEAT_Y: 1,
+            NUM_RANDOM_OBJECTS: 10, // More objects
+            RANDOM_OBJECT_SCALE: 1.5,
+            // Advanced
+            USE_SHADOWS: true, // Enable shadows by default (can impact performance)
+            SMOOTH_CAMERA: true, // Smooth camera transitions
+            CAMERA_LAG: 0.1, // How much the camera lags behind the player
+            FOV: 75, // Field of view
+            DEBUG_MODE: false // Show debug information (like cell coordinates)
+        };
+
+        // --- Global Variables ---
+        const STATE = {
+            scene: null,
+            camera: null,
+            renderer: null,
+            maze: null,
+            mazeObjects: null,
+            randomObjectsGroup: null,
+            // Player state
+            playerPos: new THREE.Vector3(), // Current interpolated position
+            playerDir: new THREE.Vector3(0, 0, -1), // Current view direction
+            targetPos: new THREE.Vector3(),   // Target position after move/turn
+            targetDir: new THREE.Vector3(0, 0, -1), // Target view direction after turn
+            isMoving: false,
+            isTurning: false,
+            currentCell: { x: 1, z: 1 }, // Grid cell coordinates
+            // Materials
+            brickMaterial: null,
+            // Tracking
+            pathCells: [],
+            randomMazeObjects: [],
+            // Utilities
+            clock: new THREE.Clock(),
+            stats: {
+                fps: 0,
+                frameCount: 0,
+                elapsedTime: 0,
+                cellsVisited: new Set()
+            },
+            // UI
+            uiVisible: true,
+            // Options
+            paused: false,
+            needsNewMaze: false, // Flag to regenerate maze in next frame
+            needsResetPosition: false // Flag to reset player position
+        };
+
+        // --- Initialization ---
+        async function init() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                STATE.clock.start();
+
+                setupScene(); // Basic scene, camera, renderer setup
+                setupLights();
+                STATE.brickMaterial = await createRandomBrickMaterial(); // Generate texture first
+
+                // Initial maze generation
+                await generateAndBuildMaze(); // Generate structure, geometry, objects, player
+
+                setupEventListeners(); // Handle resize and keyboard input
+
+                document.getElementById('info').textContent = "Windows 95 Maze Screensaver Replica++";
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('stats').textContent = `FPS: 0\nCells: 0/${STATE.pathCells.length}`;
+
+                animate(); // Start the main loop
+            } catch (error) {
+                console.error("Initialization failed:", error);
+                displayError(`Initialization failed: ${error.message}.<br>WebGL might not be supported or enabled.`);
+            }
+        }
+
+        async function generateAndBuildMaze() {
+            STATE.paused = true; // Pause updates during generation
+            document.getElementById('loading').style.display = 'block';
+
+            // Clear previous objects if they exist
+            if (STATE.mazeObjects) {
+                STATE.scene.remove(STATE.mazeObjects);
+                STATE.mazeObjects.traverse(child => {
+                    if (child.isMesh) {
+                        child.geometry.dispose();
+                        // Material disposal handled carefully if shared or unique
+                    }
+                });
+            }
+            if (STATE.randomObjectsGroup) {
+                STATE.scene.remove(STATE.randomObjectsGroup);
+                 STATE.randomObjectsGroup.traverse(child => {
+                    if (child.isMesh) {
+                        child.geometry.dispose();
+                        child.material.dispose(); // Assume unique materials for random objects
+                    }
+                });
+            }
+            STATE.randomMazeObjects = []; // Clear the array
+
+            generateMazeStructure(); // Create the logical maze layout
+            await createMazeGeometry(); // Create the visual walls, floor, ceiling
+            addRandomObjects(); // Add special objects within the maze
+            setupPlayer(); // Place the player at a start point
+
+            // Reset stats related to the maze itself
+            STATE.stats.cellsVisited.clear();
+            updateStatsUI(); // Update display immediately
+
+            document.getElementById('loading').style.display = 'none';
+            STATE.paused = false; // Resume updates
+        }
+
+
+        async function setupScene() {
+            STATE.scene = new THREE.Scene();
+            const fogColor = 0xAAAAAA; // Lighter Grey
+            STATE.scene.background = new THREE.Color(fogColor);
+            STATE.scene.fog = new THREE.Fog(fogColor, CONFIG.CELL_SIZE * 1.5, CONFIG.CELL_SIZE * (Math.min(CONFIG.MAZE_WIDTH, CONFIG.MAZE_HEIGHT) * 0.8));
+
+            const aspect = window.innerWidth / window.innerHeight;
+            STATE.camera = new THREE.PerspectiveCamera(CONFIG.FOV, aspect, 0.1, 1000);
+            STATE.camera.position.y = CONFIG.WALL_HEIGHT / 2 - 1.5; // Slightly lower viewpoint
+
+            STATE.renderer = new THREE.WebGLRenderer({
+                canvas: document.getElementById('mazeCanvas'),
+                antialias: true,
+                powerPreference: 'high-performance'
+            });
+            STATE.renderer.setSize(window.innerWidth, window.innerHeight);
+            STATE.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            if (CONFIG.USE_SHADOWS) {
+                STATE.renderer.shadowMap.enabled = true;
+                STATE.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            }
+
+            STATE.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            STATE.renderer.toneMappingExposure = 1.2;
+            STATE.renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+            if (!STATE.renderer.getContext()) {
+                throw new Error("Could not get WebGL context.");
+            }
+        }
+
+        function setupLights() {
+            STATE.scene.children = STATE.scene.children.filter(c => !c.isLight); // Clear existing lights
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            STATE.scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            directionalLight.position.set(0.8, 1, 0.6).normalize();
+
+            if (CONFIG.USE_SHADOWS) {
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.width = 1024;
+                directionalLight.shadow.mapSize.height = 1024;
+                directionalLight.shadow.camera.near = 0.5;
+                directionalLight.shadow.camera.far = 500;
+
+                const d = CONFIG.CELL_SIZE * Math.max(CONFIG.MAZE_WIDTH, CONFIG.MAZE_HEIGHT) / 2;
+                directionalLight.shadow.camera.left = -d;
+                directionalLight.shadow.camera.right = d;
+                directionalLight.shadow.camera.top = d;
+                directionalLight.shadow.camera.bottom = -d;
+            }
+            STATE.scene.add(directionalLight);
+
+            const hemisphereLight = new THREE.HemisphereLight(0xCCCCCC, 0x555555, 0.5);
+            STATE.scene.add(hemisphereLight);
+
+            const playerLight = new THREE.PointLight(0xFFFFFF, 0.7, CONFIG.CELL_SIZE * 3, 1); // Added decay
+            playerLight.position.y = CONFIG.WALL_HEIGHT / 2;
+            if (CONFIG.USE_SHADOWS) {
+                playerLight.castShadow = true; // Player light can cast subtle shadows
+                playerLight.shadow.mapSize.width = 256; // Lower res for point light shadow
+                playerLight.shadow.mapSize.height = 256;
+                playerLight.shadow.bias = -0.01; // Adjust shadow bias
+            }
+            playerLight.name = 'playerLight';
+            STATE.scene.add(playerLight);
+        }
+
+        // --- Procedural Texture Generation (Keep existing functions) ---
+        async function createRandomBrickTexture(width = 256, height = 256) {
+            return new Promise(resolve => {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+
+                const baseHue = 25 + Math.random() * 30;
+                const baseSat = 10 + Math.random() * 20;
+                const baseLight = 30 + Math.random() * 25;
+                ctx.fillStyle = `hsl(${baseHue}, ${baseSat}%, ${baseLight}%)`;
+                ctx.fillRect(0, 0, width, height);
+
+                const brickWidth = width / (4 + Math.floor(Math.random()*3));
+                const brickHeight = height / (8 + Math.floor(Math.random()*6));
+                const gap = Math.max(1, Math.floor(Math.random() * 4));
+
+                addNoiseToCanvas(ctx, width, height, 0.1, `hsl(${baseHue}, ${baseSat}%, ${baseLight}%)`);
+
+                for (let y = gap; y < height - gap; y += brickHeight + gap) {
+                    for (let x = gap; x < width - gap; x += brickWidth + gap) {
+                        const brickHue = (baseHue + (Math.random() - 0.5) * 60 + 360) % 360;
+                        const brickSat = 30 + Math.random() * 40;
+                        const brickLight = 45 + Math.random() * 30;
+                        ctx.fillStyle = `hsl(${brickHue}, ${brickSat}%, ${brickLight}%)`;
+
+                        ctx.fillRect(x, y, brickWidth, brickHeight);
+
+                        addNoiseToCanvas(
+                            ctx,
+                            brickWidth,
+                            brickHeight,
+                            0.05,
+                            `hsl(${brickHue}, ${brickSat}%, ${brickLight}%)`,
+                            x, y
+                        );
+                    }
+                }
+
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(CONFIG.TEXTURE_REPEAT_X, CONFIG.TEXTURE_REPEAT_Y * (CONFIG.WALL_HEIGHT / CONFIG.CELL_SIZE));
+                texture.colorSpace = THREE.SRGBColorSpace;
+                texture.needsUpdate = true; // Ensure texture updates
+                resolve(texture);
+            });
+        }
+
+        function addNoiseToCanvas(ctx, width, height, intensity, baseColor, offsetX = 0, offsetY = 0) {
+            const imageData = ctx.getImageData(offsetX, offsetY, width, height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = Math.min(255, Math.max(0, data[i] + (Math.random() - 0.5) * intensity * 255));
+                data[i+1] = Math.min(255, Math.max(0, data[i+1] + (Math.random() - 0.5) * intensity * 255));
+                data[i+2] = Math.min(255, Math.max(0, data[i+2] + (Math.random() - 0.5) * intensity * 255));
+            }
+            ctx.putImageData(imageData, offsetX, offsetY);
+        }
+
+        async function createRandomBrickMaterial() {
+            const texture = await createRandomBrickTexture();
+            const bumpTexture = await createBumpMap();
+
+            // Dispose previous textures if they exist to prevent memory leaks on regen
+             if (STATE.brickMaterial) {
+                STATE.brickMaterial.map?.dispose();
+                STATE.brickMaterial.bumpMap?.dispose();
+            }
+
+            return new THREE.MeshStandardMaterial({
+                map: texture,
+                bumpMap: bumpTexture,
+                bumpScale: 0.2,
+                roughness: 0.85,
+                metalness: 0.1
+            });
+        }
+
+        async function createBumpMap(width = 256, height = 256) {
+           return new Promise(resolve => {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#808080';
+                ctx.fillRect(0, 0, width, height);
+                const imageData = ctx.getImageData(0, 0, width, height);
+                const data = imageData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const bumpValue = 128 + (Math.random() - 0.5) * 60;
+                    data[i] = data[i+1] = data[i+2] = bumpValue;
+                }
+                ctx.putImageData(imageData, 0, 0);
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(CONFIG.TEXTURE_REPEAT_X, CONFIG.TEXTURE_REPEAT_Y * (CONFIG.WALL_HEIGHT / CONFIG.CELL_SIZE));
+                texture.needsUpdate = true; // Ensure texture updates
+                resolve(texture);
+            });
+        }
+
+        // --- Maze Generation (Keep existing functions) ---
+        function generateMazeStructure() {
+            STATE.stats.cellsVisited.clear();
+            STATE.maze = Array(CONFIG.MAZE_HEIGHT).fill(null).map(() => Array(CONFIG.MAZE_WIDTH).fill(null));
+            STATE.pathCells = [];
+            const stack = [];
+
+            for (let z = 0; z < CONFIG.MAZE_HEIGHT; z++) {
+                for (let x = 0; x < CONFIG.MAZE_WIDTH; x++) {
+                    STATE.maze[z][x] = {
+                        x: x, z: z, type: 'wall', visited: false,
+                        walls: [true, true, true, true] // N, E, S, W
+                    };
+                }
+            }
+
+            let startX = 1 + Math.floor(Math.random() * (CONFIG.MAZE_WIDTH / 2 - 1)) * 2;
+            let startZ = 1 + Math.floor(Math.random() * (CONFIG.MAZE_HEIGHT / 2 - 1)) * 2;
+
+            let currentCell = STATE.maze[startZ][startX];
+            currentCell.type = 'path';
+            currentCell.visited = true;
+            STATE.pathCells.push({x: startX, z: startZ});
+            stack.push(currentCell);
+
+            while (stack.length > 0) {
+                currentCell = stack[stack.length - 1];
+                const neighbors = getUnvisitedNeighbors(currentCell.x, currentCell.z);
+
+                if (neighbors.length > 0) {
+                    const nextCellInfo = neighbors[Math.floor(Math.random() * neighbors.length)];
+                    const nextCell = nextCellInfo.cell;
+                    removeWall(currentCell, nextCell, nextCellInfo.dir);
+                    nextCell.type = 'path';
+                    nextCell.visited = true;
+                    STATE.pathCells.push({x: nextCell.x, z: nextCell.z});
+                    stack.push(nextCell);
+                } else {
+                    stack.pop();
+                }
+            }
+
+            // Post-process and ensure all path cells are recorded
+             const currentPathCellsSet = new Set(STATE.pathCells.map(p => `${p.x},${p.z}`));
+            for (let z = 0; z < CONFIG.MAZE_HEIGHT; z++) {
+                for (let x = 0; x < CONFIG.MAZE_WIDTH; x++) {
+                    const cell = STATE.maze[z][x];
+                    if (cell.type === 'path') {
+                        if (!currentPathCellsSet.has(`${x},${z}`)) {
+                            STATE.pathCells.push({x: x, z: z});
+                        }
+                        // Recalculate walls based on final path layout (important after adding loops)
+                        cell.walls[0] = !(z > 0 && STATE.maze[z-1][x]?.type === 'path');
+                        cell.walls[1] = !(x < CONFIG.MAZE_WIDTH - 1 && STATE.maze[z][x+1]?.type === 'path');
+                        cell.walls[2] = !(z < CONFIG.MAZE_HEIGHT - 1 && STATE.maze[z+1][x]?.type === 'path');
+                        cell.walls[3] = !(x > 0 && STATE.maze[z][x-1]?.type === 'path');
+                    }
+                }
+            }
+
+            addMazeLoops(Math.floor(CONFIG.MAZE_WIDTH * CONFIG.MAZE_HEIGHT / 50)); // Add loops proportional to size
+            console.log(`Maze generated with ${STATE.pathCells.length} path cells.`);
+        }
+
+        function addMazeLoops(numLoops) {
+            let loopsAdded = 0;
+            let attempts = 0;
+            const maxAttempts = numLoops * 10; // Prevent infinite loop
+
+            while (loopsAdded < numLoops && attempts < maxAttempts) {
+                attempts++;
+                // Choose a random path cell (not on edge)
+                const randIdx = Math.floor(Math.random() * STATE.pathCells.length);
+                const cellCoord = STATE.pathCells[randIdx];
+                const x = cellCoord.x;
+                const z = cellCoord.z;
+
+                if (x <= 0 || x >= CONFIG.MAZE_WIDTH - 1 || z <= 0 || z >= CONFIG.MAZE_HEIGHT - 1) continue; // Skip edge cells
+
+                const cell = STATE.maze[z][x];
+                if (!cell || cell.type !== 'path') continue;
+
+                // Find adjacent path cells separated by a wall
+                const potentialWallsToRemove = []; // [ { dir: 0, nx: x, nz: z-1 }, ... ]
+                 if (cell.walls[0] && STATE.maze[z-1]?.[x]?.type === 'path') potentialWallsToRemove.push({ dir: 0, nx: x, nz: z - 1 });
+                 if (cell.walls[1] && STATE.maze[z]?.[x+1]?.type === 'path') potentialWallsToRemove.push({ dir: 1, nx: x + 1, nz: z });
+                 if (cell.walls[2] && STATE.maze[z+1]?.[x]?.type === 'path') potentialWallsToRemove.push({ dir: 2, nx: x, nz: z + 1 });
+                 if (cell.walls[3] && STATE.maze[z]?.[x-1]?.type === 'path') potentialWallsToRemove.push({ dir: 3, nx: x - 1, nz: z });
+
+                if (potentialWallsToRemove.length > 0) {
+                    const wallToRemove = potentialWallsToRemove[Math.floor(Math.random() * potentialWallsToRemove.length)];
+                    const neighborCell = STATE.maze[wallToRemove.nz][wallToRemove.nx];
+
+                    // Remove wall from both sides
+                    cell.walls[wallToRemove.dir] = false;
+                    neighborCell.walls[(wallToRemove.dir + 2) % 4] = false;
+                    loopsAdded++;
+                    //console.log(`Removed wall at (${x},${z}) dir ${wallToRemove.dir}`);
+                }
+            }
+            if (loopsAdded > 0) console.log(`Added ${loopsAdded} loops.`);
+        }
+
+
+        function getUnvisitedNeighbors(x, z) {
+            const neighbors = [];
+            // Directions adjusted: [dz, dx, wallCurrentDir, wallNeighborDir, wallBreak_dz, wallBreak_dx]
+             const directions = [
+                { dz: -2, dx: 0, wc: 0, wn: 2, wdz: -1, wdx: 0 }, // N
+                { dz: 0, dx: 2, wc: 1, wn: 3, wdz: 0, wdx: 1 },   // E
+                { dz: 2, dx: 0, wc: 2, wn: 0, wdz: 1, wdx: 0 },   // S
+                { dz: 0, dx: -2, wc: 3, wn: 1, wdz: 0, wdx: -1 }  // W
+            ];
+
+            for (const dir of directions) {
+                const nz = z + dir.dz;
+                const nx = x + dir.dx;
+                if (nz >= 0 && nz < CONFIG.MAZE_HEIGHT && nx >= 0 && nx < CONFIG.MAZE_WIDTH && !STATE.maze[nz][nx].visited) {
+                    neighbors.push({ cell: STATE.maze[nz][nx], dir: dir });
+                }
+            }
+            // Shuffle neighbors for more random maze generation
+            for (let i = neighbors.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [neighbors[i], neighbors[j]] = [neighbors[j], neighbors[i]];
+            }
+            return neighbors;
+        }
+
+        function removeWall(cellA, cellB, dir) {
+    cellA.walls[dir.wc] = false;
+    cellB.walls[dir.wn] = false;
+    // Carve out the wall cell between them
+    const wallZ = cellA.z + dir.wdz;
+    const wallX = cellA.x + dir.wdx;
+
+    // Check if intermediate cell exists before proceeding
+    const intermediateCell = STATE.maze[wallZ]?.[wallX]; // Use optional chaining for read safety here
+    if (intermediateCell) {
+        intermediateCell.type = 'path';
+        intermediateCell.visited = true; // Mark as visited to prevent cycles during generation
+
+        // Ensure intermediate cell is added to path list if not already there
+        if (!STATE.pathCells.some(p => p.x === wallX && p.z === wallZ)) {
+             STATE.pathCells.push({x: wallX, z: wallZ});
+        }
+         // Intermediate cell connects two paths, so it should have no walls blocking internally
+         intermediateCell.walls = [false, false, false, false];
+
+         // --- Corrected Neighbor Wall Update ---
+         // Update walls OF neighbors pointing TOWARDS the intermediate cell
+
+         // Check North Neighbor
+         const cellNorth = STATE.maze[wallZ - 1]?.[wallX];
+         if (cellNorth) {
+             cellNorth.walls[2] = false; // Remove North cell's South wall
+         }
+
+         // Check East Neighbor
+         const cellEast = STATE.maze[wallZ]?.[wallX + 1];
+         if (cellEast) {
+             cellEast.walls[3] = false; // Remove East cell's West wall
+         }
+
+         // Check South Neighbor
+         const cellSouth = STATE.maze[wallZ + 1]?.[wallX];
+         if (cellSouth) {
+             cellSouth.walls[0] = false; // Remove South cell's North wall
+         }
+
+         // Check West Neighbor
+         const cellWest = STATE.maze[wallZ]?.[wallX - 1];
+         if (cellWest) {
+             cellWest.walls[1] = false; // Remove West cell's East wall
+         }
+    }
+}
+
+        // --- Maze Geometry Creation (Keep existing function, ensure material update) ---
+        async function createMazeGeometry() {
+            // Refresh material in case texture was regenerated
+            if (!STATE.brickMaterial) {
+                 console.log("Material not ready, attempting regeneration...");
+                 STATE.brickMaterial = await createRandomBrickMaterial();
+            }
+             if (!STATE.brickMaterial) {
+                 console.error("Brick material still not available after regeneration attempt.");
+                 throw new Error("Failed to create or regenerate brick material.");
+            }
+
+
+            STATE.mazeObjects = new THREE.Group();
+
+            const wallGeoEW = new THREE.BoxGeometry(CONFIG.CELL_SIZE, CONFIG.WALL_HEIGHT, CONFIG.WALL_THICKNESS);
+            const wallGeoNS = new THREE.BoxGeometry(CONFIG.WALL_THICKNESS, CONFIG.WALL_HEIGHT, CONFIG.CELL_SIZE + CONFIG.WALL_THICKNESS);
+            const floorCeilingGeo = new THREE.PlaneGeometry(CONFIG.MAZE_WIDTH * CONFIG.CELL_SIZE, CONFIG.MAZE_HEIGHT * CONFIG.CELL_SIZE);
+
+            // Floor
+            const floorTexture = new THREE.TextureLoader().load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/floors/FloorsCheckerboard_S_Diffuse.jpg',
+                (texture) => { // onload callback
+                    texture.wrapS = THREE.RepeatWrapping;
+                    texture.wrapT = THREE.RepeatWrapping;
+                    texture.repeat.set(CONFIG.MAZE_WIDTH / 2, CONFIG.MAZE_HEIGHT / 2);
+                    texture.needsUpdate = true;
+                },
+                undefined, // onProgress callback
+                (err) => { // onError callback
+                    console.error('Error loading floor texture:', err);
+                    // Fallback to a simple color material?
+                }
+            );
+
+            const floorMaterial = new THREE.MeshStandardMaterial({
+                map: floorTexture,
+                roughness: 0.9,
+                metalness: 0.1,
+                color: 0xAAAAAA
+            });
+
+            const ceilingMaterial = new THREE.MeshStandardMaterial({
+                color: 0xBBBBBB,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+
+            const floor = new THREE.Mesh(floorCeilingGeo, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = -CONFIG.WALL_THICKNESS / 2; // Sit slightly below walls
+            if (CONFIG.USE_SHADOWS) floor.receiveShadow = true;
+            STATE.mazeObjects.add(floor);
+
+            const ceiling = new THREE.Mesh(floorCeilingGeo, ceilingMaterial);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.y = CONFIG.WALL_HEIGHT + CONFIG.WALL_THICKNESS / 2; // Sit slightly above walls
+            // Ceiling usually doesn't need shadows
+            STATE.mazeObjects.add(ceiling);
+
+
+            // --- Instanced Walls ---
+            // ... (geometry, material setup) ...
+
+            const maxInstances = CONFIG.MAZE_WIDTH * CONFIG.MAZE_HEIGHT * 2;
+            const wallInstancesEW = new THREE.InstancedMesh(wallGeoEW, STATE.brickMaterial, maxInstances);
+            const wallInstancesNS = new THREE.InstancedMesh(wallGeoNS, STATE.brickMaterial, maxInstances);
+
+            if (CONFIG.USE_SHADOWS) {
+                wallInstancesEW.castShadow = true;
+                wallInstancesEW.receiveShadow = true;
+                wallInstancesNS.castShadow = true;
+                wallInstancesNS.receiveShadow = true;
+            }
+
+            let ewCount = 0;
+            let nsCount = 0;
+            const dummy = new THREE.Object3D();
+
+            for (let z = 0; z < CONFIG.MAZE_HEIGHT; z++) {
+                for (let x = 0; x < CONFIG.MAZE_WIDTH; x++) {
+                    const cell = STATE.maze[z]?.[x]; // Use optional chaining for safety
+
+                    // Skip if cell doesn't exist or isn't a path cell we need to draw walls around.
+                    // We generally only need to draw walls for 'path' cells based on their flags.
+                    // Boundary wall cells might need special handling if they weren't carved.
+                    if (!cell || cell.type !== 'path') continue;
+
+                    const cellX = (x - CONFIG.MAZE_WIDTH / 2 + 0.5) * CONFIG.CELL_SIZE;
+                    const cellZ = (z - CONFIG.MAZE_HEIGHT / 2 + 0.5) * CONFIG.CELL_SIZE;
+                    const wallData = cell.walls; // [N, E, S, W]
+
+                    // --- Corrected Wall Drawing Logic ---
+
+                    // North Wall (Draw if flag is true)
+                    if (wallData[0]) {
+                        dummy.position.set(cellX, CONFIG.WALL_HEIGHT / 2, cellZ - CONFIG.CELL_SIZE / 2);
+                        dummy.updateMatrix();
+                        if (ewCount < maxInstances) wallInstancesEW.setMatrixAt(ewCount++, dummy.matrix);
+                    }
+
+                    // East Wall (Draw if flag is true)
+                    if (wallData[1]) {
+                        dummy.position.set(cellX + CONFIG.CELL_SIZE / 2, CONFIG.WALL_HEIGHT / 2, cellZ);
+                        dummy.updateMatrix();
+                        if (nsCount < maxInstances) wallInstancesNS.setMatrixAt(nsCount++, dummy.matrix);
+                    }
+
+                    // South Wall (Draw ONLY if flag is true AND the cell below *doesn't* handle the North boundary)
+                    // This prevents drawing the same wall segment twice.
+                    const neighborSouth = STATE.maze[z + 1]?.[x];
+                    if (wallData[2] && (!neighborSouth || neighborSouth.type !== 'path' || !neighborSouth.walls[0])) {
+                         dummy.position.set(cellX, CONFIG.WALL_HEIGHT / 2, cellZ + CONFIG.CELL_SIZE / 2);
+                         dummy.updateMatrix();
+                         if (ewCount < maxInstances) wallInstancesEW.setMatrixAt(ewCount++, dummy.matrix);
+                    }
+
+                    // West Wall (Draw ONLY if flag is true AND the cell left *doesn't* handle the East boundary)
+                    // This prevents drawing the same wall segment twice.
+                    const neighborWest = STATE.maze[z]?.[x - 1];
+                     if (wallData[3] && (!neighborWest || neighborWest.type !== 'path' || !neighborWest.walls[1])) {
+                         dummy.position.set(cellX - CONFIG.CELL_SIZE / 2, CONFIG.WALL_HEIGHT / 2, cellZ);
+                         dummy.updateMatrix();
+                         if (nsCount < maxInstances) wallInstancesNS.setMatrixAt(nsCount++, dummy.matrix);
+                     }
+                }
+            }
+
+             // Explicitly set counts
+             wallInstancesEW.count = ewCount;
+             wallInstancesNS.count = nsCount;
+             wallInstancesEW.instanceMatrix.needsUpdate = true;
+             wallInstancesNS.instanceMatrix.needsUpdate = true;
+
+            STATE.mazeObjects.add(wallInstancesEW);
+            STATE.mazeObjects.add(wallInstancesNS);
+            STATE.scene.add(STATE.mazeObjects);
+            console.log(`Created maze geometry with ${ewCount} EW walls and ${nsCount} NS walls.`);
+        }
+
+        function isBoundaryWall(x, z) {
+             // Helper to check if a cell is on the absolute outer edge
+             return x === 0 || x === CONFIG.MAZE_WIDTH - 1 || z === 0 || z === CONFIG.MAZE_HEIGHT - 1;
+        }
+
+
+        // --- Random Objects ---
+        function addRandomObjects() {
+            if (STATE.randomObjectsGroup) {
+                STATE.scene.remove(STATE.randomObjectsGroup);
+                 STATE.randomObjectsGroup.traverse(child => {
+                    if (child.isMesh) {
+                        child.geometry.dispose();
+                        child.material.dispose();
+                    }
+                });
+            }
+            STATE.randomObjectsGroup = new THREE.Group();
+            STATE.randomMazeObjects = [];
+
+            const geometries = [
+                new THREE.IcosahedronGeometry(CONFIG.RANDOM_OBJECT_SCALE, 0), // Simple Platonic solid
+                new THREE.TorusKnotGeometry(CONFIG.RANDOM_OBJECT_SCALE * 0.7, CONFIG.RANDOM_OBJECT_SCALE * 0.2, 100, 16),
+                new THREE.BoxGeometry(CONFIG.RANDOM_OBJECT_SCALE, CONFIG.RANDOM_OBJECT_SCALE*1.5, CONFIG.RANDOM_OBJECT_SCALE), // A crate?
+            ];
+
+            const materials = [
+                new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.3, metalness: 0.8 }), // Gold
+                new THREE.MeshStandardMaterial({ color: 0x00ff00, roughness: 0.7, metalness: 0.1, emissive: 0x003300 }), // Glowing green
+                new THREE.MeshStandardMaterial({ color: 0xff00ff, roughness: 0.5, metalness: 0.5 }), // Magenta metal
+                new THREE.MeshStandardMaterial({ map: STATE.brickMaterial.map, roughness: 0.8, metalness: 0.1 }), // Use brick texture?
+                 new THREE.MeshStandardMaterial({ color: 0x00ffff, roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.7 }) // Cyan Glass
+            ];
+
+            const availableCells = [...STATE.pathCells]; // Copy path cells
+
+            for (let i = 0; i < CONFIG.NUM_RANDOM_OBJECTS && availableCells.length > 0; i++) {
+                const randIdx = Math.floor(Math.random() * availableCells.length);
+                const cellCoord = availableCells.splice(randIdx, 1)[0]; // Pick and remove cell
+                const x = cellCoord.x;
+                const z = cellCoord.z;
+
+                const objX = (x - CONFIG.MAZE_WIDTH / 2 + 0.5) * CONFIG.CELL_SIZE;
+                const objZ = (z - CONFIG.MAZE_HEIGHT / 2 + 0.5) * CONFIG.CELL_SIZE;
+                const objY = CONFIG.RANDOM_OBJECT_SCALE; // Place on floor
+
+                const geometry = geometries[Math.floor(Math.random() * geometries.length)];
+                const material = materials[Math.floor(Math.random() * materials.length)];
+                const randomObject = new THREE.Mesh(geometry, material);
+
+                randomObject.position.set(objX, objY, objZ);
+                randomObject.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI); // Random orientation
+
+                if (CONFIG.USE_SHADOWS) {
+                    randomObject.castShadow = true;
+                    randomObject.receiveShadow = true; // Small objects might receive shadows
+                }
+                STATE.randomObjectsGroup.add(randomObject);
+                STATE.randomMazeObjects.push(randomObject); // Keep track if needed
+            }
+
+             // Dispose unused geometries
+            geometries.forEach(g => g.dispose());
+            // Note: Materials are kept as they might be shared or reused by THREE internally.
+
+            STATE.scene.add(STATE.randomObjectsGroup);
+        }
+
+        // --- Player Setup ---
+        function setupPlayer() {
+            if (STATE.pathCells.length === 0) {
+                console.error("No path cells available to place player.");
+                // Default to center-ish if generation failed?
+                STATE.currentCell = { x: Math.floor(CONFIG.MAZE_WIDTH / 2) | 1, z: Math.floor(CONFIG.MAZE_HEIGHT / 2) | 1 };
+            } else {
+                 // Choose a random starting cell from the generated path
+                 const startCellIndex = Math.floor(Math.random() * STATE.pathCells.length);
+                 STATE.currentCell = { ...STATE.pathCells[startCellIndex] }; // Copy coordinates
+            }
+
+
+            const startX = (STATE.currentCell.x - CONFIG.MAZE_WIDTH / 2 + 0.5) * CONFIG.CELL_SIZE;
+            const startZ = (STATE.currentCell.z - CONFIG.MAZE_HEIGHT / 2 + 0.5) * CONFIG.CELL_SIZE;
+
+            STATE.playerPos.set(startX, STATE.camera.position.y, startZ);
+            STATE.targetPos.copy(STATE.playerPos); // Initial target is current pos
+
+            // Random initial direction (aligned to axes)
+            const initialDirs = [
+                new THREE.Vector3(0, 0, -1), // North
+                new THREE.Vector3(1, 0, 0),  // East
+                new THREE.Vector3(0, 0, 1),  // South
+                new THREE.Vector3(-1, 0, 0)  // West
+            ];
+            STATE.playerDir.copy(initialDirs[Math.floor(Math.random() * 4)]);
+            STATE.targetDir.copy(STATE.playerDir);
+
+            // Reset movement state
+            STATE.isMoving = false;
+            STATE.isTurning = false;
+
+            // Immediately position camera at player start
+            STATE.camera.position.copy(STATE.playerPos);
+            const lookAtPos = new THREE.Vector3().copy(STATE.playerPos).add(STATE.playerDir);
+            STATE.camera.lookAt(lookAtPos);
+
+             // Update visited cell set
+             STATE.stats.cellsVisited.add(`${STATE.currentCell.x},${STATE.currentCell.z}`);
+             updateStatsUI(); // Update display
+
+            console.log(`Player setup at cell (${STATE.currentCell.x}, ${STATE.currentCell.z}) facing ${STATE.playerDir.x},${STATE.playerDir.z}`);
+        }
+
+        // --- Event Listeners ---
+        function setupEventListeners() {
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('keydown', onKeyDown);
+        }
+
+        function onWindowResize() {
+            STATE.camera.aspect = window.innerWidth / window.innerHeight;
+            STATE.camera.updateProjectionMatrix();
+            STATE.renderer.setSize(window.innerWidth, window.innerHeight);
+            STATE.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        }
+
+        function onKeyDown(event) {
+             if (event.code === 'Space') { // New Maze
+                 STATE.needsNewMaze = true; // Flag for processing in the main loop
+             } else if (event.code === 'KeyR') { // Reset Player Position
+                 STATE.needsResetPosition = true; // Flag for processing
+             } else if (event.code === 'Escape') { // Toggle UI
+                 toggleUI();
+             }
+        }
+
+        function toggleUI() {
+            STATE.uiVisible = !STATE.uiVisible;
+            const displayValue = STATE.uiVisible ? 'block' : 'none';
+            document.getElementById('info').style.display = displayValue;
+            document.getElementById('stats').style.display = displayValue;
+            document.getElementById('controls').style.display = displayValue;
+        }
+
+        function displayError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.innerHTML = message; // Use innerHTML to allow basic formatting like <br>
+            errorDiv.style.display = 'block';
+             document.getElementById('loading').style.display = 'none'; // Hide loading if error occurs
+            STATE.paused = true; // Stop the simulation on error
+        }
+
+
+        // --- Core Logic: Player Movement & Animation ---
+        function updatePlayer(deltaTime) {
+            if (STATE.paused || STATE.isMoving || STATE.isTurning) return; // Don't decide new move if busy or paused
+
+            const currentX = STATE.currentCell.x;
+            const currentZ = STATE.currentCell.z;
+            const currentMazeCell = STATE.maze[currentZ]?.[currentX];
+
+            if (!currentMazeCell) {
+                 console.warn("Player is in an invalid cell!", currentX, currentZ);
+                 // Attempt recovery: Reset position?
+                 STATE.needsResetPosition = true;
+                 return;
+            }
+
+            const possibleMoves = getPossibleMoves(currentX, currentZ, currentMazeCell.walls, STATE.playerDir);
+
+            // --- Decision Logic (Win95 Style) ---
+            let chosenMove = null;
+
+            // 1. Prefer going forward
+             if (possibleMoves.forward) {
+                 chosenMove = 'forward';
+             }
+             // 2. If cannot go forward, check right first
+             else if (possibleMoves.right) {
+                 chosenMove = 'right';
+             }
+             // 3. If not forward or right, check left
+             else if (possibleMoves.left) {
+                 chosenMove = 'left';
+             }
+             // 4. If only backward is possible, turn around (treat as two right turns or two left turns)
+             else {
+                 chosenMove = 'around'; // Will trigger a turn
+             }
+
+             // --- Execute Move ---
+             const moveAmount = CONFIG.CELL_SIZE;
+             const turnAmount = Math.PI / 2; // 90 degrees
+
+             switch (chosenMove) {
+                case 'forward':
+                    // Calculate target position
+                    STATE.targetPos.copy(STATE.playerPos).addScaledVector(STATE.playerDir, moveAmount);
+                    STATE.isMoving = true;
+                    break;
+                case 'right':
+                     // Calculate target direction (rotate current dir -90 deg around Y)
+                    STATE.targetDir.copy(STATE.playerDir).applyAxisAngle(new THREE.Vector3(0, 1, 0), -turnAmount).round(); // Snap to axis
+                    STATE.targetPos.copy(STATE.playerPos); // Position doesn't change during turn
+                    STATE.isTurning = true;
+                    break;
+                 case 'left':
+                    // Calculate target direction (rotate current dir +90 deg around Y)
+                    STATE.targetDir.copy(STATE.playerDir).applyAxisAngle(new THREE.Vector3(0, 1, 0), turnAmount).round(); // Snap to axis
+                    STATE.targetPos.copy(STATE.playerPos); // Position doesn't change during turn
+                    STATE.isTurning = true;
+                    break;
+                 case 'around': // Turn right twice essentially (or left twice)
+                    STATE.targetDir.copy(STATE.playerDir).applyAxisAngle(new THREE.Vector3(0, 1, 0), -turnAmount).round(); // Start turning right
+                    STATE.targetPos.copy(STATE.playerPos);
+                    STATE.isTurning = true;
+                    // The logic will naturally choose the next right/left turn after this one completes.
+                    break;
+            }
+        }
+
+        function getPossibleMoves(x, z, walls, direction) {
+             // walls: [N, E, S, W] - true if wall exists
+             // direction: THREE.Vector3 indicating current forward direction
+            const moves = { forward: false, left: false, right: false, back: false };
+            const tolerance = 0.1; // For floating point comparisons
+
+            // Check Forward
+            if (Math.abs(direction.z + 1) < tolerance && !walls[0]) moves.forward = { dx: 0, dz: -1 }; // Facing N, check N wall
+            else if (Math.abs(direction.x - 1) < tolerance && !walls[1]) moves.forward = { dx: 1, dz: 0 }; // Facing E, check E wall
+            else if (Math.abs(direction.z - 1) < tolerance && !walls[2]) moves.forward = { dx: 0, dz: 1 }; // Facing S, check S wall
+            else if (Math.abs(direction.x + 1) < tolerance && !walls[3]) moves.forward = { dx: -1, dz: 0 }; // Facing W, check W wall
+
+            // Check Left (relative to current direction)
+            if (Math.abs(direction.z + 1) < tolerance && !walls[3]) moves.left = { dx: -1, dz: 0 }; // Facing N, check W wall
+            else if (Math.abs(direction.x - 1) < tolerance && !walls[0]) moves.left = { dx: 0, dz: -1 }; // Facing E, check N wall
+            else if (Math.abs(direction.z - 1) < tolerance && !walls[1]) moves.left = { dx: 1, dz: 0 }; // Facing S, check E wall
+            else if (Math.abs(direction.x + 1) < tolerance && !walls[2]) moves.left = { dx: 0, dz: 1 }; // Facing W, check S wall
+
+            // Check Right (relative to current direction)
+             if (Math.abs(direction.z + 1) < tolerance && !walls[1]) moves.right = { dx: 1, dz: 0 }; // Facing N, check E wall
+             else if (Math.abs(direction.x - 1) < tolerance && !walls[2]) moves.right = { dx: 0, dz: 1 }; // Facing E, check S wall
+             else if (Math.abs(direction.z - 1) < tolerance && !walls[3]) moves.right = { dx: -1, dz: 0 }; // Facing S, check W wall
+             else if (Math.abs(direction.x + 1) < tolerance && !walls[0]) moves.right = { dx: 0, dz: -1 }; // Facing W, check N wall
+
+            // Check Back (relative to current direction) - less critical for logic but useful for completeness
+             if (Math.abs(direction.z + 1) < tolerance && !walls[2]) moves.back = { dx: 0, dz: 1 }; // Facing N, check S wall
+             else if (Math.abs(direction.x - 1) < tolerance && !walls[3]) moves.back = { dx: -1, dz: 0 }; // Facing E, check W wall
+             else if (Math.abs(direction.z - 1) < tolerance && !walls[0]) moves.back = { dx: 0, dz: -1 }; // Facing S, check N wall
+             else if (Math.abs(direction.x + 1) < tolerance && !walls[1]) moves.back = { dx: 1, dz: 0 }; // Facing W, check E wall
+
+            return moves;
+        }
+
+         function updateMovement(deltaTime) {
+             const moveThreshold = 0.05;
+             const rotThreshold = 0.01; // Radians
+
+             // --- Update Position ---
+             if (STATE.isMoving) {
+                 const distanceToTarget = STATE.playerPos.distanceTo(STATE.targetPos);
+
+                 if (distanceToTarget <= moveThreshold) {
+                     // Snap to target position
+                     STATE.playerPos.copy(STATE.targetPos);
+                     STATE.isMoving = false;
+
+                     // Update grid coordinates based on snapped position
+                     STATE.currentCell.x = Math.round((STATE.playerPos.x / CONFIG.CELL_SIZE) + CONFIG.MAZE_WIDTH / 2 - 0.5);
+                     STATE.currentCell.z = Math.round((STATE.playerPos.z / CONFIG.CELL_SIZE) + CONFIG.MAZE_HEIGHT / 2 - 0.5);
+
+                     // Mark cell as visited
+                     STATE.stats.cellsVisited.add(`${STATE.currentCell.x},${STATE.currentCell.z}`);
+                     updateStatsUI(); // Update display
+
+                     if (CONFIG.DEBUG_MODE) console.log("Arrived at cell:", STATE.currentCell.x, STATE.currentCell.z);
+
+                 } else {
+                      // Move towards target
+                      const moveDirection = new THREE.Vector3().subVectors(STATE.targetPos, STATE.playerPos).normalize();
+                      const moveStep = CONFIG.MOVE_SPEED * deltaTime;
+                      // Ensure we don't overshoot
+                      if (moveStep > distanceToTarget) {
+                           STATE.playerPos.copy(STATE.targetPos); // Arrived early this frame
+                           STATE.isMoving = false; // Stop for next frame decision
+                      } else {
+                           STATE.playerPos.addScaledVector(moveDirection, moveStep);
+                      }
+                 }
+             }
+
+             // --- Update Rotation ---
+             if (STATE.isTurning) {
+                 const currentAngle = Math.atan2(STATE.playerDir.x, STATE.playerDir.z);
+                 const targetAngle = Math.atan2(STATE.targetDir.x, STATE.targetDir.z);
+                 let angleDifference = targetAngle - currentAngle;
+
+                 // Normalize angle difference to [-PI, PI]
+                 while (angleDifference <= -Math.PI) angleDifference += 2 * Math.PI;
+                 while (angleDifference > Math.PI) angleDifference -= 2 * Math.PI;
+
+                 if (Math.abs(angleDifference) <= rotThreshold) {
+                     // Snap to target direction
+                     STATE.playerDir.copy(STATE.targetDir);
+                     STATE.isTurning = false;
+                     if (CONFIG.DEBUG_MODE) console.log("Finished turn, new dir:", STATE.playerDir.x.toFixed(1), STATE.playerDir.z.toFixed(1));
+                 } else {
+                      // Turn towards target angle
+                      const turnStep = CONFIG.TURN_SPEED * deltaTime * Math.sign(angleDifference);
+                      // Prevent overshooting the turn
+                      const turn = Math.abs(turnStep) > Math.abs(angleDifference) ? angleDifference : turnStep;
+
+                      STATE.playerDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), turn).normalize();
+                 }
+             }
+         }
+
+         function updateCamera(deltaTime) {
+             const cameraTargetPosition = new THREE.Vector3();
+             // Base camera position directly on player position but keep Y constant
+             cameraTargetPosition.set(STATE.playerPos.x, STATE.camera.position.y, STATE.playerPos.z);
+
+             if (CONFIG.SMOOTH_CAMERA) {
+                // Smoothly interpolate camera position
+                STATE.camera.position.lerp(cameraTargetPosition, CONFIG.CAMERA_LAG);
+             } else {
+                 STATE.camera.position.copy(cameraTargetPosition);
+             }
+
+             // Look slightly ahead of the player based on current direction
+             const lookAtTarget = new THREE.Vector3()
+                 .copy(STATE.camera.position) // Start from camera's current (or interpolated) position
+                 .addScaledVector(STATE.playerDir, CONFIG.CELL_SIZE * 0.5); // Look half a cell ahead
+             lookAtTarget.y = STATE.camera.position.y - 0.5; // Look slightly down
+
+             STATE.camera.lookAt(lookAtTarget);
+         }
+
+          function updateStats(deltaTime) {
+             STATE.stats.elapsedTime += deltaTime;
+             STATE.stats.frameCount++;
+
+             if (STATE.stats.elapsedTime >= 1.0) { // Update FPS calculation every second
+                 STATE.stats.fps = Math.round(STATE.stats.frameCount / STATE.stats.elapsedTime);
+                 STATE.stats.frameCount = 0;
+                 STATE.stats.elapsedTime = 0;
+                 updateStatsUI(); // Update display only once per second
+             }
+         }
+
+          function updateStatsUI() {
+              if (STATE.uiVisible) {
+                   document.getElementById('stats').textContent = `FPS: ${STATE.stats.fps}\nCells: ${STATE.stats.cellsVisited.size}/${STATE.pathCells.length}`;
+              }
+          }
+
+         function updatePlayerLight() {
+             const light = STATE.scene.getObjectByName('playerLight');
+             if (light) {
+                  // Position light slightly above the player's eyes, maybe slightly in front
+                  light.position.copy(STATE.playerPos);
+                  light.position.y = CONFIG.WALL_HEIGHT / 2; // Match camera height?
+                  light.position.addScaledVector(STATE.playerDir, 0.2); // Move slightly forward
+             }
+         }
+
+         // --- Animation Loop ---
+         function animate() {
+             requestAnimationFrame(animate); // Loop
+
+             const deltaTime = STATE.clock.getDelta();
+
+            // Handle pending actions first
+             if (STATE.needsNewMaze) {
+                 STATE.needsNewMaze = false;
+                 generateAndBuildMaze(); // Async, handles pausing/unpausing
+                 return; // Skip rest of frame processing until maze is built
+             }
+             if (STATE.needsResetPosition) {
+                 STATE.needsResetPosition = false;
+                 setupPlayer(); // Resets position and movement state
+                 // No return needed, can continue frame
+             }
+
+
+             if (!STATE.paused) {
+                 updatePlayer(deltaTime);    // Decide next move if not already moving/turning
+                 updateMovement(deltaTime);  // Execute current move/turn interpolation
+                 updateCamera(deltaTime);    // Update camera position and lookAt
+                 updateStats(deltaTime);     // Update FPS counter etc.
+                 updatePlayerLight();        // Move the point light with the player
+
+                 // Optional: Animate random objects?
+                 STATE.randomMazeObjects.forEach(obj => {
+                      //obj.rotation.y += 0.5 * deltaTime; // Simple rotation
+                 });
+             }
+
+             STATE.renderer.render(STATE.scene, STATE.camera);
+         }
+
+        // --- Start the application ---
+        init();
+
+    </script>
+</body>
+</html>
