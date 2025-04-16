@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Falling Balls Simulation (Enhanced)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a; /* Slightly darker */
+            color: white;
+            font-family: sans-serif;
+            display: flex;
+            /* Remove centering to allow container to fill width */
+            /* align-items: center; */
+            justify-content: center; /* Center vertically */
+            height: 100vh;
+            padding: 20px 0; /* Add some vertical padding */
+            box-sizing: border-box;
+        }
+        #simulationContainer {
+            position: relative;
+            border: 1px solid #444; /* Darker border */
+            box-shadow: 0 0 15px rgba(0,0,0,0.5); /* Add a subtle shadow */
+            /* Width/Height set by JS */
+        }
+        canvas {
+            display: block;
+            background-color: #e8e8e8; /* Lighter grey canvas */
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 8px 12px;
+            border-radius: 5px;
+            z-index: 10;
+            font-size: 14px;
+        }
+        #controls button {
+            margin-top: 8px;
+            padding: 4px 8px;
+            cursor: pointer;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Container's size will be controlled by JS -->
+    <div id="simulationContainer">
+        <canvas id="simulationCanvas"></canvas>
+        <div id="controls">
+            <div id="info">Click canvas to drop ball</div>
+            <button id="resetButton">Reset Simulation</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const CONFIG = {
+            GRAVITY: 0.25,
+            DAMPING: 0.7,
+            FRICTION: 0.98,
+            BALL_RADIUS_MIN: 6,   // *** Min ball size ***
+            BALL_RADIUS_MAX: 12,  // *** Max ball size ***
+            MAX_BALLS: 150,         // Allow more balls potentially
+            BALL_LIFETIME_MS: 18000, // 18 seconds
+            OBSTACLE_COUNT_MIN: 8, // Adjusted for dynamic size
+            OBSTACLE_COUNT_MAX: 25, // Adjusted for dynamic size
+            OBSTACLE_WIDTH_MIN: 40,
+            OBSTACLE_WIDTH_MAX: 90,
+            OBSTACLE_HEIGHT: 10,
+            // OBSTACLE_COLOR removed - now random
+            OBSTACLE_PLACEMENT_ATTEMPTS: 10,
+            OBSTACLE_PADDING: 10, // Base padding between obstacles
+            CANVAS_MARGIN_X: 50,   // Pixels margin left/right
+            CANVAS_MARGIN_Y: 40,   // Pixels margin top/bottom (body padding used)
+            SPAWN_Y_OFFSET: 15,      // How far below top edge balls appear
+            TOP_MARGIN_OBSTACLES: 60, // Area at top without obstacles
+            BOTTOM_MARGIN_OBSTACLES: 60,// Area at bottom without obstacles
+        };
+
+        // --- Global State ---
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('simulationContainer');
+        let animationId = null;
+
+        const state = {
+            balls: [],
+            obstacles: [],
+        };
+
+        // --- Helper Functions ---
+        function getRandomFloat(min, max) { return Math.random() * (max - min) + min; }
+        function getRandomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+        function getRandomColor() { /* ... (same as before) ... */
+            const h = getRandomInt(0, 360);
+            const s = getRandomInt(70, 90);
+            const l = getRandomInt(50, 70);
+            return `hsl(${h}, ${s}%, ${l}%)`;
+        }
+        function checkRectCollision(rect1, rect2, padding = 0) { /* ... (same as before) ... */
+            return (
+                rect1.x < rect2.x + rect2.width + padding &&
+                rect1.x + rect1.width + padding > rect2.x &&
+                rect1.y < rect2.y + rect2.height + padding &&
+                rect1.y + rect1.height + padding > rect2.y
+            );
+        }
+
+
+        // --- Object Creation ---
+        function createBall(x, y) {
+            if (state.balls.length >= CONFIG.MAX_BALLS) return;
+
+            const radius = getRandomFloat(CONFIG.BALL_RADIUS_MIN, CONFIG.BALL_RADIUS_MAX); // *** Random Radius ***
+            const ball = {
+                x: x,
+                y: y,
+                vx: getRandomFloat(-1, 1),
+                vy: 0,
+                radius: radius, // *** Use random radius ***
+                color: getRandomColor(),
+                creationTime: Date.now(),
+            };
+            state.balls.push(ball);
+        }
+
+        function createObstacle(x, y, width, height) {
+            return {
+                x: x,
+                y: y,
+                width: width,
+                height: height,
+                color: getRandomColor(), // *** Random Color ***
+                left: x,
+                right: x + width,
+                top: y,
+                bottom: y + height,
+            };
+        }
+
+        function generateObstacles() {
+            state.obstacles = [];
+            const count = getRandomInt(CONFIG.OBSTACLE_COUNT_MIN, CONFIG.OBSTACLE_COUNT_MAX);
+
+            // Use current canvas dimensions for placement bounds
+            const placementWidth = canvas.width - CONFIG.OBSTACLE_PADDING * 2;
+            const placementHeight = canvas.height - CONFIG.TOP_MARGIN_OBSTACLES - CONFIG.BOTTOM_MARGIN_OBSTACLES;
+            const startY = CONFIG.TOP_MARGIN_OBSTACLES;
+             // Padding based on largest possible ball + obstacle padding
+            const collisionPadding = CONFIG.BALL_RADIUS_MAX + CONFIG.OBSTACLE_PADDING;
+
+            for (let i = 0; i < count; i++) {
+                let placed = false;
+                for (let attempt = 0; attempt < CONFIG.OBSTACLE_PLACEMENT_ATTEMPTS; attempt++) {
+                    const width = getRandomFloat(CONFIG.OBSTACLE_WIDTH_MIN, CONFIG.OBSTACLE_WIDTH_MAX);
+                    const height = CONFIG.OBSTACLE_HEIGHT;
+                    // Ensure x stays within padded bounds
+                    const x = getRandomFloat(CONFIG.OBSTACLE_PADDING, canvas.width - width - CONFIG.OBSTACLE_PADDING);
+                    // Ensure y stays within obstacle placement zone
+                    const y = getRandomFloat(startY, startY + placementHeight - height);
+
+                    const newObstacle = { x, y, width, height };
+
+                    let collides = false;
+                    for (const existing of state.obstacles) {
+                        // Check collision using dynamic padding based on largest ball
+                        if (checkRectCollision(newObstacle, existing, collisionPadding)) {
+                            collides = true;
+                            break;
+                        }
+                    }
+
+                    if (!collides) {
+                        state.obstacles.push(createObstacle(x, y, width, height));
+                        placed = true;
+                        break;
+                    }
+                }
+                 // if (!placed) { console.log(`Could not place obstacle ${i + 1}.`); }
+            }
+        }
+
+
+        // --- Drawing Functions ---
+        function drawBall(ball) { /* ... (same as before, uses ball.radius) ... */
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = ball.color;
+            ctx.fill();
+            ctx.closePath();
+        }
+        function drawObstacle(obstacle) { /* ... (same as before, uses obstacle.color) ... */
+            ctx.fillStyle = obstacle.color;
+            ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+        }
+        function drawScene() { /* ... (same as before) ... */
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            state.obstacles.forEach(drawObstacle);
+            state.balls.forEach(drawBall);
+        }
+
+        // --- Physics and Collision --- (Handles variable ball.radius)
+        function handleCollisions(ball) {
+            // 1. Wall collisions
+            if (ball.x - ball.radius < 0) {
+                ball.x = ball.radius;
+                ball.vx *= -CONFIG.DAMPING;
+            } else if (ball.x + ball.radius > canvas.width) {
+                ball.x = canvas.width - ball.radius;
+                ball.vx *= -CONFIG.DAMPING;
+            }
+            if (ball.y + ball.radius > canvas.height) {
+                ball.y = canvas.height - ball.radius;
+                ball.vy *= -CONFIG.DAMPING;
+                ball.vx *= CONFIG.FRICTION;
+            }
+
+             // 2. Obstacle collisions (logic remains same, uses ball.radius)
+             state.obstacles.forEach(obs => {
+                if (ball.x + ball.radius > obs.left && ball.x - ball.radius < obs.right &&
+                    ball.y + ball.radius > obs.top && ball.y - ball.radius < obs.bottom)
+                {
+                    const closestX = Math.max(obs.left, Math.min(ball.x, obs.right));
+                    const closestY = Math.max(obs.top, Math.min(ball.y, obs.bottom));
+                    const dx = ball.x - closestX;
+                    const dy = ball.y - closestY;
+                    const distanceSquared = (dx * dx) + (dy * dy);
+
+                    if (distanceSquared < ball.radius * ball.radius) {
+                        const distance = distanceSquared > 0 ? Math.sqrt(distanceSquared) : 0;
+                        const overlap = ball.radius - distance;
+                        const nx = distance > 0.001 ? dx / distance : 0;
+                        const ny = distance > 0.001 ? dy / distance : 1;
+
+                        ball.x += nx * overlap;
+                        ball.y += ny * overlap;
+
+                        const dotProduct = ball.vx * nx + ball.vy * ny;
+                        if (dotProduct < 0) { // Only reflect if moving towards the obstacle
+                            ball.vx -= (1 + CONFIG.DAMPING) * dotProduct * nx;
+                            ball.vy -= (1 + CONFIG.DAMPING) * dotProduct * ny;
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateBall(ball) { /* ... (same as before) ... */
+            ball.vy += CONFIG.GRAVITY;
+            ball.x += ball.vx;
+            ball.y += ball.vy;
+            handleCollisions(ball);
+        }
+
+        // --- Animation Loop ---
+        function animate() { /* ... (lifetime removal same as before) ... */
+            animationId = requestAnimationFrame(animate);
+            const currentTime = Date.now();
+            state.balls.forEach(updateBall);
+            const ballsToRemove = [];
+            state.balls.forEach((ball, index) => {
+                if (currentTime - ball.creationTime > CONFIG.BALL_LIFETIME_MS || ball.y - ball.radius > canvas.height + 50) {
+                    ballsToRemove.push(index);
+                }
+            });
+            for (let i = ballsToRemove.length - 1; i >= 0; i--) {
+                state.balls.splice(ballsToRemove[i], 1);
+            }
+            drawScene();
+        }
+
+        // --- Reset and Initialization ---
+        function resetSimulation() {
+            console.log("Resetting simulation...");
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            state.balls = [];
+            // Generate obstacles *after* canvas is sized
+            generateObstacles();
+            drawScene();
+            animate();
+        }
+
+        // --- Dynamic Resizing ---
+        function resizeCanvas() {
+            // Calculate available space minus margins
+            const newWidth = window.innerWidth - CONFIG.CANVAS_MARGIN_X * 2;
+            // Height calculation can be fixed or percentage based
+            // Let's make it fill a good portion, but max out reasonably
+            const newHeight = Math.min(window.innerHeight * 0.85, 900); // Example: 85% height, max 900px
+
+             // Apply size to canvas and container
+             canvas.width = newWidth;
+             canvas.height = newHeight;
+             container.style.width = `${newWidth}px`;
+             container.style.height = `${newHeight}px`;
+
+             console.log(`Canvas resized to: ${newWidth}x${newHeight}`);
+
+             // IMPORTANT: Reset simulation to regenerate obstacles for new bounds
+             // A more complex approach could try to reposition obstacles, but reset is simpler
+             resetSimulation();
+        }
+
+
+        function init() {
+            // Initial resize to set size based on window
+            resizeCanvas(); // Call this first!
+
+            // Event Listeners
+            canvas.addEventListener('click', (event) => {
+                if (event.target !== canvas) return; // Ensure click is on canvas
+                const rect = canvas.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                createBall(x, CONFIG.SPAWN_Y_OFFSET);
+            });
+
+            document.getElementById('resetButton').addEventListener('click', resetSimulation);
+
+            // Add listener for window resize
+            window.addEventListener('resize', resizeCanvas);
+
+            // Initial setup already done by resizeCanvas calling resetSimulation
+        }
+
+        // --- Start ---
+        init();
+
+    </script>
+</body>
+</html>
