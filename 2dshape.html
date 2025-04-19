@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rotating Morphing Triangle</title>
+  <style>
+    :root {
+      --primary-color: #3498db;
+      --secondary-color: #2ecc71;
+      --tertiary-color: #e74c3c;
+      --background-color: #222;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-color: var(--background-color);
+      overflow: hidden;
+    }
+
+    .container {
+      position: relative;
+      width: 300px;
+      height: 300px;
+      perspective: 1000px;
+    }
+
+    .triangle {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      animation: rotate 10s linear infinite;
+    }
+
+    .shape {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      transform: translate(-50%, -50%);
+      animation: morph 20s ease-in-out infinite;
+      background: linear-gradient(135deg, #a1a1a1, #f0f0f0, #a1a1a1, #d7d7d7);
+      background-size: 400% 400%;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+      filter: url('#metallic');
+    }
+
+    @keyframes rotate {
+      0% {
+        transform: rotateY(0) rotateX(0) rotateZ(0);
+      }
+      100% {
+        transform: rotateY(360deg) rotateX(360deg) rotateZ(360deg);
+      }
+    }
+
+    @keyframes morph {
+      0%, 100% {
+        /* Triangle */
+        clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+        width: 200px;
+        height: 200px;
+        background-position: 0% 50%;
+      }
+      25% {
+        /* Square */
+        clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+        width: 180px;
+        height: 180px;
+        background-position: 100% 50%;
+      }
+      50% {
+        /* Circle */
+        clip-path: circle(50% at 50% 50%);
+        width: 190px;
+        height: 190px;
+        background-position: 50% 100%;
+      }
+      75% {
+        /* Pentagon */
+        clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+        width: 210px;
+        height: 210px;
+        background-position: 50% 0%;
+      }
+    }
+
+    /* Metallic effect animation */
+    @keyframes shimmer {
+      0% {
+        background-position: 0% 50%;
+      }
+      100% {
+        background-position: 100% 50%;
+      }
+    }
+
+    .controls {
+      position: fixed;
+      bottom: 20px;
+      display: flex;
+      gap: 10px;
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+    }
+
+    button {
+      padding: 8px 12px;
+      background-color: #444;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #666;
+    }
+
+    .error-message {
+      position: fixed;
+      top: 20px;
+      background-color: rgba(255, 0, 0, 0.8);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      max-width: 80%;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="triangle">
+      <div class="shape"></div>
+    </div>
+  </div>
+  
+  <div class="controls">
+    <button id="speed-up">Speed Up</button>
+    <button id="slow-down">Slow Down</button>
+    <button id="change-color">Change Color</button>
+    <button id="reset">Reset</button>
+  </div>
+
+  <div class="error-message" id="error-message"></div>
+
+  <!-- SVG filters for metallic effect -->
+  <svg width="0" height="0">
+    <filter id="metallic">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1" result="blur" />
+      <feSpecularLighting in="blur" surfaceScale="1" specularConstant="1" specularExponent="20" lighting-color="#FFFFFF" result="specular">
+        <fePointLight x="100" y="100" z="150" />
+      </feSpecularLighting>
+      <feComposite in="specular" in2="SourceGraphic" operator="in" result="composite" />
+      <feComposite in="SourceGraphic" in2="composite" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" />
+    </filter>
+  </svg>
+
+  <script>
+    // Constants
+    const DEFAULT_ROTATE_DURATION = 10;
+    const DEFAULT_MORPH_DURATION = 20;
+    const MIN_DURATION = 2;
+    const MAX_DURATION = 30;
+    const COLOR_SETS = [
+      ['#a1a1a1', '#f0f0f0', '#a1a1a1', '#d7d7d7'], // Silver
+      ['#cd7f32', '#ffd700', '#cd7f32', '#daa520'], // Gold/Bronze
+      ['#2e86de', '#00d2d3', '#2e86de', '#54a0ff'], // Blue
+      ['#6ab04c', '#badc58', '#6ab04c', '#78e08f']  // Green
+    ];
+
+    // DOM Elements
+    const triangle = document.querySelector('.triangle');
+    const shape = document.querySelector('.shape');
+    const speedUpBtn = document.getElementById('speed-up');
+    const slowDownBtn = document.getElementById('slow-down');
+    const changeColorBtn = document.getElementById('change-color');
+    const resetBtn = document.getElementById('reset');
+    const errorMessage = document.getElementById('error-message');
+
+    // State management
+    let state = {
+      rotateDuration: DEFAULT_ROTATE_DURATION,
+      morphDuration: DEFAULT_MORPH_DURATION,
+      currentColorSet: 0
+    };
+
+    // Helper Functions
+    function updateAnimationSpeed() {
+      triangle.style.animation = `rotate ${state.rotateDuration}s linear infinite`;
+      shape.style.animation = `morph ${state.morphDuration}s ease-in-out infinite`;
+    }
+
+    function updateColor() {
+      const colors = COLOR_SETS[state.currentColorSet];
+      shape.style.background = `linear-gradient(135deg, ${colors[0]}, ${colors[1]}, ${colors[2]}, ${colors[3]})`;
+      shape.style.backgroundSize = '400% 400%';
+    }
+
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorMessage.style.display = 'block';
+      
+      setTimeout(() => {
+        errorMessage.style.display = 'none';
+      }, 3000);
+    }
+
+    function safelyUpdateDuration(value, type) {
+      try {
+        if (isNaN(value)) {
+          throw new Error('Duration must be a number');
+        }
+        
+        if (value < MIN_DURATION) {
+          showError(`Duration cannot be less than ${MIN_DURATION}s`);
+          return MIN_DURATION;
+        }
+        
+        if (value > MAX_DURATION) {
+          showError(`Duration cannot be more than ${MAX_DURATION}s`);
+          return MAX_DURATION;
+        }
+        
+        return value;
+      } catch (error) {
+        showError(`Error updating ${type}: ${error.message}`);
+        return type === 'rotate' ? DEFAULT_ROTATE_DURATION : DEFAULT_MORPH_DURATION;
+      }
+    }
+
+    // Event Listeners
+    speedUpBtn.addEventListener('click', () => {
+      state.rotateDuration = safelyUpdateDuration(state.rotateDuration * 0.8, 'rotate');
+      state.morphDuration = safelyUpdateDuration(state.morphDuration * 0.8, 'morph');
+      updateAnimationSpeed();
+    });
+
+    slowDownBtn.addEventListener('click', () => {
+      state.rotateDuration = safelyUpdateDuration(state.rotateDuration * 1.2, 'rotate');
+      state.morphDuration = safelyUpdateDuration(state.morphDuration * 1.2, 'morph');
+      updateAnimationSpeed();
+    });
+
+    changeColorBtn.addEventListener('click', () => {
+      try {
+        state.currentColorSet = (state.currentColorSet + 1) % COLOR_SETS.length;
+        updateColor();
+      } catch (error) {
+        showError(`Error changing color: ${error.message}`);
+      }
+    });
+
+    resetBtn.addEventListener('click', () => {
+      try {
+        state.rotateDuration = DEFAULT_ROTATE_DURATION;
+        state.morphDuration = DEFAULT_MORPH_DURATION;
+        state.currentColorSet = 0;
+        updateAnimationSpeed();
+        updateColor();
+      } catch (error) {
+        showError(`Error resetting: ${error.message}`);
+      }
+    });
+
+    // Initialization
+    function init() {
+      try {
+        updateAnimationSpeed();
+        updateColor();
+        
+        // Add animation to shimmer effect
+        shape.style.animation += ', shimmer 3s linear infinite';
+      } catch (error) {
+        showError(`Initialization error: ${error.message}`);
+        console.error('Initialization error:', error);
+        
+        // Fallback to default styles if initialization fails
+        triangle.style.animation = `rotate ${DEFAULT_ROTATE_DURATION}s linear infinite`;
+        shape.style.animation = `morph ${DEFAULT_MORPH_DURATION}s ease-in-out infinite`;
+      }
+    }
+
+    // Initialize the application
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
