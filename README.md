@@ -14,3 +14,4 @@ Juste des trucs en vrac.
 - light.html : Une pièce, une lampe, un cube, une sphère et la possibilité d'appuyer sur le bouton.
 - maze.html : Pareil que lines.html, mais cette fois-ci c'est le labyrinthe
 - ball.html : Simulation 2D avec gravité, balles qui tombent 
+- 2dshape.html : Forme 2D qui change de forme et de couleur
