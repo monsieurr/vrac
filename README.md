@@ -15,3 +15,4 @@ Juste des trucs en vrac.
 - maze.html : Pareil que lines.html, mais cette fois-ci c'est le labyrinthe
 - ball.html : Simulation 2D avec gravité, balles qui tombent 
 - 2dshape.html : Forme 2D qui change de forme et de couleur
+- squarepropagation.html : Propagation des carrés de couleur sur la page
