@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blinking Squares</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        .grid {
+            display: grid;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .square {
+            transition: background-color 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div id="grid" class="grid"></div>
+
+    <script>
+        // DOM elements
+        const gridContainer = document.getElementById('grid');
+        
+        // Variables
+        let squares = [];
+        let squareIntervals = [];
+        let gridMap = []; // 2D representation of the grid
+        let rows = 0;
+        let cols = 0;
+        
+        // Color generator
+        function getRandomColor() {
+            const r = Math.floor(Math.random() * 256);
+            const g = Math.floor(Math.random() * 256);
+            const b = Math.floor(Math.random() * 256);
+            return { r, g, b };
+        }
+        
+        // Convert rgb object to CSS color string
+        function rgbToString(color) {
+            return `rgb(${color.r}, ${color.g}, ${color.b})`;
+        }
+
+        // Get random blink speed for a square
+        function getRandomBlinkSpeed() {
+            return Math.floor(Math.random() * 2000) + 500; // 500ms to 2500ms
+        }
+        
+        // Check if colors are similar (within certain threshold)
+        function areSimilarColors(color1, color2) {
+            if (!color1 || !color2) return false;
+            
+            const threshold = 30; // Lower values make the similarity check more strict
+            const rDiff = Math.abs(color1.r - color2.r);
+            const gDiff = Math.abs(color1.g - color2.g);
+            const bDiff = Math.abs(color1.b - color2.b);
+            
+            return rDiff < threshold && gDiff < threshold && bDiff < threshold;
+        }
+        
+        // Calculate grid dimensions based on screen size
+        function calculateGridDimensions() {
+            // Make squares approximately 20px by 20px
+            const squareSize = 20;
+            
+            // Calculate number of rows and columns to fill the screen
+            const cols = Math.ceil(window.innerWidth / squareSize);
+            const rows = Math.ceil(window.innerHeight / squareSize);
+            
+            return { rows, cols };
+        }
+        
+        // Get the square element and its current color at given coordinates
+        function getSquareAt(row, col) {
+            if (row < 0 || row >= rows || col < 0 || col >= cols) return null;
+            return gridMap[row][col];
+        }
+        
+        // Apply color to a square and implement color propagation rules
+        function applyColorToSquare(rowIndex, colIndex) {
+            const square = getSquareAt(rowIndex, colIndex);
+            if (!square) return;
+            
+            const adjacentPositions = [
+                { row: rowIndex - 1, col: colIndex },     // top
+                { row: rowIndex + 1, col: colIndex },     // bottom
+                { row: rowIndex, col: colIndex - 1 },     // left
+                { row: rowIndex, col: colIndex + 1 }      // right
+            ];
+            
+            // Get adjacent squares
+            const adjacentSquares = adjacentPositions.map(pos => getSquareAt(pos.row, pos.col)).filter(sq => sq !== null);
+            
+            let newColor;
+            
+            // Rule 1: Check if any two adjacent squares have similar colors
+            for (let i = 0; i < adjacentSquares.length; i++) {
+                for (let j = i + 1; j < adjacentSquares.length; j++) {
+                    if (areSimilarColors(adjacentSquares[i].color, adjacentSquares[j].color)) {
+                        // Apply that color to our square
+                        newColor = {...adjacentSquares[i].color};
+                        
+                        // And propagate to all adjacent squares
+                        adjacentSquares.forEach(adjSquare => {
+                            // Add slight variation
+                            const variation = Math.floor(Math.random() * 10) - 5;
+                            const adjColor = {...newColor};
+                            adjColor.r = Math.max(0, Math.min(255, adjColor.r + variation));
+                            adjColor.g = Math.max(0, Math.min(255, adjColor.g + variation));
+                            adjColor.b = Math.max(0, Math.min(255, adjColor.b + variation));
+                            
+                            adjSquare.element.style.backgroundColor = rgbToString(adjColor);
+                            adjSquare.color = adjColor;
+                        });
+                        
+                        square.element.style.backgroundColor = rgbToString(newColor);
+                        square.color = newColor;
+                        return;
+                    }
+                }
+            }
+            
+            // Rule 2: High chance that top and bottom squares will take the same color
+            const topSquare = getSquareAt(rowIndex - 1, colIndex);
+            const bottomSquare = getSquareAt(rowIndex + 1, colIndex);
+            
+            if (topSquare && Math.random() < 0.7) { // 70% chance
+                newColor = {...topSquare.color};
+                // Add slight variation
+                newColor.r = Math.max(0, Math.min(255, newColor.r + Math.floor(Math.random() * 20) - 10));
+                newColor.g = Math.max(0, Math.min(255, newColor.g + Math.floor(Math.random() * 20) - 10));
+                newColor.b = Math.max(0, Math.min(255, newColor.b + Math.floor(Math.random() * 20) - 10));
+            } else if (bottomSquare && Math.random() < 0.7) { // 70% chance
+                newColor = {...bottomSquare.color};
+                // Add slight variation
+                newColor.r = Math.max(0, Math.min(255, newColor.r + Math.floor(Math.random() * 20) - 10));
+                newColor.g = Math.max(0, Math.min(255, newColor.g + Math.floor(Math.random() * 20) - 10));
+                newColor.b = Math.max(0, Math.min(255, newColor.b + Math.floor(Math.random() * 20) - 10));
+            } else {
+                // Otherwise, just use a random color
+                newColor = getRandomColor();
+            }
+            
+            square.element.style.backgroundColor = rgbToString(newColor);
+            square.color = newColor;
+        }
+        
+        // Create grid
+        function createGrid() {
+            try {
+                // Clear grid
+                gridContainer.innerHTML = '';
+                squares = [];
+                gridMap = [];
+                
+                // Clear existing intervals
+                squareIntervals.forEach(interval => clearInterval(interval));
+                squareIntervals = [];
+                
+                // Calculate dimensions
+                const dimensions = calculateGridDimensions();
+                rows = dimensions.rows;
+                cols = dimensions.cols;
+                
+                // Set grid template
+                gridContainer.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+                gridContainer.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+                
+                // Initialize grid map
+                for (let i = 0; i < rows; i++) {
+                    gridMap[i] = [];
+                }
+                
+                // Create squares
+                for (let row = 0; row < rows; row++) {
+                    for (let col = 0; col < cols; col++) {
+                        const square = document.createElement('div');
+                        square.className = 'square';
+                        
+                        // Initialize with random color
+                        const color = getRandomColor();
+                        square.style.backgroundColor = rgbToString(color);
+                        
+                        gridContainer.appendChild(square);
+                        
+                        // Store square and its data
+                        const squareData = {
+                            element: square,
+                            color: color,
+                            row: row,
+                            col: col
+                        };
+                        
+                        squares.push(squareData);
+                        gridMap[row][col] = squareData;
+                        
+                        // Set up individual blinking for each square
+                        const blinkSpeed = getRandomBlinkSpeed();
+                        const interval = setInterval(() => {
+                            applyColorToSquare(row, col);
+                        }, blinkSpeed);
+                        
+                        squareIntervals.push(interval);
+                    }
+                }
+                
+                return true;
+            } catch (error) {
+                console.error("Error creating grid:", error);
+                return false;
+            }
+        }
+        
+        // Initialize grid
+        document.addEventListener('DOMContentLoaded', createGrid);
+        
+        // Recreate grid on window resize
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(createGrid, 300);
+        });
+        
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            squareIntervals.forEach(interval => clearInterval(interval));
+        });
+    </script>
+</body>
+</html>
