@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dithered Fluid Gradient</title>
+    <style>
+        /* Basic reset and full page setup */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100vh; /* Use vh for full viewport height */
+            overflow: hidden; /* Prevent scrollbars */
+            position: relative; /* Needed for absolute positioning of children */
+            background-color: #1f1f29; /* Fallback background */
+        }
+
+        body {
+            /* CSS Variables for dynamic control */
+            --color1: hsl(180, 70%, 60%);
+            --color2: hsl(240, 70%, 60%);
+            --color3: hsl(300, 70%, 60%);
+            --color4: hsl(0, 70%, 60%);
+            --gradient-angle: 45deg;
+            --duration: 30s; /* Base speed, JS will interpolate */
+
+            /* Gradient definition */
+            background: linear-gradient(var(--gradient-angle), var(--color1), var(--color2), var(--color3), var(--color4));
+            background-size: 400% 400%;
+
+            /* Animation for the background position shifting (flow) */
+            animation: gradientFlow var(--duration) ease infinite;
+
+            /* Ensure body is behind overlay and particles */
+            z-index: 0;
+        }
+
+        /* Dithering/Noise Overlay using pseudo-element */
+        body::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* SVG noise filter embedded as data URI */
+            /* Adjust baseFrequency for noise scale, opacity for intensity */
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><filter id="noiseFilter"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="1" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noiseFilter)"/></svg>');
+            opacity: 0.06; /* Adjust dither intensity (0.03 - 0.15 is usually good) */
+            pointer-events: none; /* Don't interfere with clicks */
+            z-index: 1; /* Above body gradient, below particles */
+        }
+
+
+        /* Keyframes for the gradient position flow */
+        @keyframes gradientFlow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Container for particles */
+        #particle-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Allows clicking through */
+            z-index: 2; /* Place particles above gradient and noise */
+        }
+
+        /* Styling for subtle particles (remains the same) */
+        .particle {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            mix-blend-mode: soft-light;
+            opacity: 1; /* JS controls actual opacity value */
+            will-change: transform, opacity;
+            z-index: 2; /* Ensure particles are above noise */
+        }
+
+    </style>
+</head>
+<body>
+    <div id="particle-container"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const body = document.body;
+            const particleContainer = document.getElementById('particle-container');
+            const numParticles = 150;
+            const particles = [];
+
+            // --- State Variables ---
+            let currentAngle = 45;
+            let targetAngle = 45;
+            let currentDuration = 30;
+            let targetDuration = 30;
+
+            // Gradient colors stored as objects {h, s, l}
+            let currentGradientColors = [];
+            let targetGradientColors = [];
+
+            // --- Helper Functions ---
+            function getRandomNumber(min, max) {
+                return Math.random() * (max - min) + min;
+            }
+
+            function getRandomHSLColor() {
+                const hue = Math.random() * 360;
+                const saturation = 60 + Math.random() * 40;
+                const lightness = 50 + Math.random() * 25;
+                return { h: hue, s: saturation, l: lightness };
+            }
+
+            function hslToString(hsl) {
+                return `hsl(${hsl.h.toFixed(0)}, ${hsl.s.toFixed(0)}%, ${hsl.l.toFixed(0)}%)`;
+            }
+
+            // Smooth interpolation helper (linear interpolation)
+            function lerp(start, end, amount) {
+                return start + (end - start) * amount;
+            }
+
+            // Special interpolation for hue (handles wrapping around 360 degrees)
+            function lerpAngle(start, end, amount) {
+                const difference = Math.abs(end - start);
+                if (difference > 180) {
+                    // Wrap around
+                    if (end > start) {
+                        start += 360;
+                    } else {
+                        end += 360;
+                    }
+                }
+                let value = lerp(start, end, amount);
+                // Ensure value stays within 0-360
+                return (value % 360 + 360) % 360;
+            }
+
+
+            // --- Particle Creation (remains the same) ---
+             function createParticles() {
+                for (let i = 0; i < numParticles; i++) {
+                    const particleElement = document.createElement('div');
+                    particleElement.classList.add('particle');
+
+                    const size = getRandomNumber(1, 4);
+                    const initialX = Math.random() * window.innerWidth;
+                    const initialY = Math.random() * window.innerHeight;
+                    const initialOpacity = getRandomNumber(0.1, 0.4);
+
+                    particleElement.style.width = `${size}px`;
+                    particleElement.style.height = `${size}px`;
+                    particleElement.style.opacity = initialOpacity.toFixed(2);
+                    particleElement.style.transform = `translate(${initialX}px, ${initialY}px)`;
+
+                    particleContainer.appendChild(particleElement);
+
+                    particles.push({
+                        element: particleElement,
+                        x: initialX, y: initialY,
+                        vx: getRandomNumber(-0.3, 0.3), vy: getRandomNumber(-0.3, 0.3),
+                        baseOpacity: initialOpacity, size: size
+                    });
+                }
+            }
+
+            // --- Initial Setup ---
+            function setInitialStyles() {
+                // Initialize both current and target colors
+                for (let i = 0; i < 4; i++) {
+                    const color = getRandomHSLColor();
+                    currentGradientColors[i] = { ...color }; // Clone color object
+                    targetGradientColors[i] = { ...color };  // Clone color object
+                    body.style.setProperty(`--color${i + 1}`, hslToString(color));
+                }
+
+                currentAngle = getRandomNumber(0, 360);
+                targetAngle = currentAngle; // Start stable
+                body.style.setProperty('--gradient-angle', `${currentAngle.toFixed(2)}deg`);
+
+                currentDuration = getRandomNumber(25, 45); // Initial duration
+                targetDuration = currentDuration; // Start stable
+                body.style.setProperty('--duration', `${currentDuration.toFixed(2)}s`);
+            }
+
+            // --- Animation Loop ---
+            let lastTimestamp = 0;
+            function animate(timestamp) {
+                if (!lastTimestamp) lastTimestamp = timestamp;
+                const deltaTime = (timestamp - lastTimestamp) / 1000; // Delta time in seconds
+                lastTimestamp = timestamp;
+
+                const interpolationFactor = 0.01; // Controls how quickly values move to target (adjust 0.005 - 0.05)
+                const colorInterpolationFactor = 0.02; // Faster color interpolation
+
+                // --- Update Background Gradient ---
+
+                // 1. Smoothly interpolate Angle
+                currentAngle = lerpAngle(currentAngle, targetAngle, interpolationFactor);
+                body.style.setProperty('--gradient-angle', `${currentAngle.toFixed(2)}deg`);
+
+                // 2. Smoothly interpolate Duration
+                currentDuration = lerp(currentDuration, targetDuration, interpolationFactor);
+                body.style.setProperty('--duration', `${currentDuration.toFixed(2)}s`);
+
+                // 3. Smoothly interpolate Colors
+                 let colorsUpdated = false;
+                for(let i = 0; i < 4; i++) {
+                    const currentColor = currentGradientColors[i];
+                    const targetColor = targetGradientColors[i];
+
+                    // Check if interpolation is needed (avoid tiny unnecessary updates)
+                    if (Math.abs(currentColor.h - targetColor.h) > 0.1 ||
+                        Math.abs(currentColor.s - targetColor.s) > 0.1 ||
+                        Math.abs(currentColor.l - targetColor.l) > 0.1)
+                    {
+                         currentColor.h = lerpAngle(currentColor.h, targetColor.h, colorInterpolationFactor);
+                         currentColor.s = lerp(currentColor.s, targetColor.s, colorInterpolationFactor);
+                         currentColor.l = lerp(currentColor.l, targetColor.l, colorInterpolationFactor);
+                         body.style.setProperty(`--color${i + 1}`, hslToString(currentColor));
+                         colorsUpdated = true;
+                    }
+                 }
+                // Optional: If colors are stable, apply subtle drift like before?
+                // if (!colorsUpdated) { /* add subtle drift code here if desired */ }
+
+                // --- Update Particles (remains the same logic) ---
+                const screenWidth = window.innerWidth;
+                const screenHeight = window.innerHeight;
+                const maxSpeed = 0.5;
+
+                particles.forEach(p => {
+                    p.x += p.vx * deltaTime * 60;
+                    p.y += p.vy * deltaTime * 60;
+
+                    if (p.x < -p.size) p.x = screenWidth + p.size;
+                    if (p.x > screenWidth + p.size) p.x = -p.size;
+                    if (p.y < -p.size) p.y = screenHeight + p.size;
+                    if (p.y > screenHeight + p.size) p.y = -p.size;
+
+                    p.element.style.transform = `translate(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px)`;
+
+                    p.vx += getRandomNumber(-0.01, 0.01) * deltaTime * 60;
+                    p.vy += getRandomNumber(-0.01, 0.01) * deltaTime * 60;
+                    p.vx = Math.max(-maxSpeed, Math.min(maxSpeed, p.vx));
+                    p.vy = Math.max(-maxSpeed, Math.min(maxSpeed, p.vy));
+                });
+
+                requestAnimationFrame(animate); // Loop the animation
+            }
+
+            // --- Periodic Random Changes (Update TARGET values) ---
+             setInterval(() => {
+                 // Set a new target angle
+                 targetAngle = getRandomNumber(0, 360);
+
+                 // Set a new target color for one random slot
+                 const colorIndexToChange = Math.floor(Math.random() * 4);
+                 targetGradientColors[colorIndexToChange] = getRandomHSLColor(); // JS will now smoothly transition
+
+                 console.log(`Interval: Target Angle->${targetAngle.toFixed(0)}, Target Color[${colorIndexToChange}] set`);
+             }, 10000); // Change targets every 10 seconds
+
+             setInterval(() => {
+                 // Set a new target duration (speed)
+                 targetDuration = getRandomNumber(15, 50); // Wider range for speed variation
+                 console.log(`Interval: Target Duration->${targetDuration.toFixed(2)}s`);
+             }, 15000); // Change target speed every 15 seconds
+
+
+            // --- Start Everything ---
+            setInitialStyles();
+            createParticles();
+            requestAnimationFrame(animate); // Start the animation loop
+
+            // --- Handle Resize ---
+            window.addEventListener('resize', () => {
+                console.log("Window resized - particles wrap, gradient adjusts.");
+            });
+        });
+    </script>
+</body>
+</html>
