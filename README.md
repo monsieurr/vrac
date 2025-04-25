@@ -10,11 +10,12 @@ Juste des trucs en vrac.
 - textures.html : Générateur de dégradés texturés
 - clouds.html : Générateur de nuages qui bougent dans le ciel (fonctionne moyen, quelques bugs)
 - pool.html : Une piscine, des ballons, du fun
-- gridgen.html : Génère des éléments sur une grille de manière aléatoire, copie des propriété des éléments (CSS) possible.
-- light.html : Une pièce, une lampe, un cube, une sphère et la possibilité d'appuyer sur le bouton.
+- gridgen.html : Génère des éléments sur une grille de manière aléatoire, copie des propriété des éléments (CSS) possible
+- light.html : Une pièce, une lampe, un cube, une sphère et la possibilité d'appuyer sur le bouton
 - maze.html : Pareil que lines.html, mais cette fois-ci c'est le labyrinthe
 - ball.html : Simulation 2D avec gravité, balles qui tombent 
 - 2dshape.html : Forme 2D qui change de forme et de couleur
 - squarepropagation.html : Propagation de carrés de couleur sur la page
 - randgradi.html : Un gradient simple avec une évolution aléatoire
-- soundwave.html : Génération de sons aléatoire avec visualisation d'une onde et ses propriétés (plus ou moins).
+- soundwave.html : Génération de sons aléatoire avec visualisation d'une onde et ses propriétés (plus ou moins)
+- chillkeyboard.html : Un clavier qui fait des sons et la pluie
