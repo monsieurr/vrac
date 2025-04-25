@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clavier AZERTY Sonore Généré et Thématique</title>
+    <style>
+        /* --- Base Variables (Default Theme) --- */
+        :root {
+            --page-bg: #2d3436; --controls-bg: #4b5457; --keyboard-bg: var(--controls-bg); --canvas-bg: #333a3c;
+            --key-bg-light: #8a7dff; --key-bg-dark: #6c5ce7; --key-shadow-light: #a197ff; --key-shadow-dark: #5145b3;
+            --key-pressed-bg-light: #6c5ce7; --key-pressed-bg-dark: #5145b3; --key-pressed-shadow-light: #8a7dff; --key-pressed-shadow-dark: #3e348f;
+            --key-text-color: #ffffff; --text-color: #dfe6e9; --heading-color: var(--text-color); --border-color: #5c6669;
+            --accent-color: #a8a5e6; --wave-color: var(--accent-color); --shadow-inset-light: #353e40; --shadow-inset-dark: #252a2c;
+            --select-arrow-color-encoded: '%23ffffff'; /* Default white encoded */
+            --error-bg: white; --error-text: red; --error-border: red;
+            --prompt-bg: rgba(255, 231, 102, 0.9); --prompt-text: #333;
+        }
+        /* --- Themes (Variables Only - Unchanged) --- */
+        [data-theme="yellow"] { --page-bg: #1a1a1a; --controls-bg: #333333; --keyboard-bg: var(--controls-bg); --canvas-bg: #222222; --key-bg-light: #ffe866; --key-bg-dark: #ffd633; --key-shadow-light: #ffffff; --key-shadow-dark: #ccab00; --key-pressed-bg-light: #ffd633; --key-pressed-bg-dark: #ccab00; --key-pressed-shadow-light: #ffe866; --key-pressed-shadow-dark: #a38800; --key-text-color: #1a1a1a; --text-color: #f0f0f0; --heading-color: #ffd633; --border-color: #444444; --accent-color: #ffd633; --wave-color: var(--accent-color); --shadow-inset-light: #404040; --shadow-inset-dark: #1f1f1f; --select-arrow-color-encoded: '%231a1a1a'; --prompt-bg: rgba(255, 214, 51, 0.9); --prompt-text: #1a1a1a; }
+        [data-theme="contrast"] { --page-bg: #000000; --controls-bg: #1e1e1e; --keyboard-bg: var(--controls-bg); --canvas-bg: #111111; --key-bg-light: #ffffff; --key-bg-dark: #dddddd; --key-shadow-light: #ffffff; --key-shadow-dark: #aaaaaa; --key-pressed-bg-light: #dddddd; --key-pressed-bg-dark: #aaaaaa; --key-pressed-shadow-light: #ffffff; --key-pressed-shadow-dark: #888888; --key-text-color: #000000; --text-color: #ffffff; --heading-color: #00ffcc; --border-color: #555555; --accent-color: #00ffcc; --wave-color: var(--accent-color); --shadow-inset-light: #333333; --shadow-inset-dark: #0a0a0a; --select-arrow-color-encoded: '%23000000'; --error-bg: yellow; --error-text: black; --error-border: black; --prompt-bg: rgba(0, 255, 204, 0.9); --prompt-text: #000000; }
+        [data-theme="bw"] { --page-bg: #ffffff; --controls-bg: #f0f0f0; --keyboard-bg: var(--controls-bg); --canvas-bg: #e0e0e0; --key-bg-light: #555555; --key-bg-dark: #333333; --key-shadow-light: #777777; --key-shadow-dark: #111111; --key-pressed-bg-light: #333333; --key-pressed-bg-dark: #111111; --key-pressed-shadow-light: #555555; --key-pressed-shadow-dark: #000000; --key-text-color: #ffffff; --text-color: #333333; --heading-color: #000000; --border-color: #cccccc; --accent-color: #444444; --wave-color: var(--accent-color); --shadow-inset-light: #ffffff; --shadow-inset-dark: #cccccc; --select-arrow-color-encoded: '%23ffffff'; }
+        [data-theme="cream"] { --page-bg: #fdf6e3; --controls-bg: #eee8d5; --keyboard-bg: var(--controls-bg); --canvas-bg: #f5f0e1; --key-bg-light: #93a1a1; --key-bg-dark: #657b83; --key-shadow-light: #b8c0c0; --key-shadow-dark: #586e75; --key-pressed-bg-light: #657b83; --key-pressed-bg-dark: #586e75; --key-pressed-shadow-light: #93a1a1; --key-pressed-shadow-dark: #073642; --key-text-color: #fdf6e3; --text-color: #586e75; --heading-color: #073642; --border-color: #d7d0c0; --accent-color: #268bd2; --wave-color: var(--accent-color); --shadow-inset-light: #ffffff; --shadow-inset-dark: #d7d0c0; --select-arrow-color-encoded: '%23fdf6e3'; --prompt-bg: rgba(38, 139, 210, 0.9); --prompt-text: #fdf6e3; }
+        [data-theme="purple"] { --page-bg: #2c1f3e; --controls-bg: #4a3768; --keyboard-bg: var(--controls-bg); --canvas-bg: #3a2b52; --key-bg-light: #e6ceff; --key-bg-dark: #c4a7ff; --key-shadow-light: #ffffff; --key-shadow-dark: #a384d1; --key-pressed-bg-light: #c4a7ff; --key-pressed-bg-dark: #a384d1; --key-pressed-shadow-light: #e6ceff; --key-pressed-shadow-dark: #8567ad; --key-text-color: #2c1f3e; --text-color: #e6ceff; --heading-color: #f0eaff; --border-color: #644c89; --accent-color: #c4a7ff; --wave-color: var(--accent-color); --shadow-inset-light: #5f4985; --shadow-inset-dark: #221831; --select-arrow-color-encoded: '%232c1f3e'; --prompt-bg: rgba(196, 167, 255, 0.9); --prompt-text: #2c1f3e; }
+
+        /* --- General Layout & Body --- */
+        *, *::before, *::after { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+            margin: 0; padding: clamp(10px, 3vw, 20px);
+            background-color: var(--page-bg); color: var(--text-color);
+            min-height: 100vh; transition: background-color 0.3s ease, color 0.3s ease; overflow-x: hidden;
+            display: grid; grid-template-columns: minmax(280px, 350px) 1fr;
+            grid-template-rows: auto 1fr; grid-template-areas: "header header" "controls main";
+            gap: clamp(15px, 3vw, 30px); align-items: start;
+        }
+        h1 {
+            grid-area: header; color: var(--heading-color); margin: 0 0 clamp(10px, 2vw, 15px) 0;
+            text-align: center; font-size: clamp(1.5rem, 5vw, 2.2rem); width: 100%;
+        }
+        /* --- Controls Column --- */
+        #controls {
+            grid-area: controls; background-color: var(--controls-bg); padding: clamp(15px, 3vw, 20px);
+            border-radius: 10px; box-shadow: inset 2px 2px 5px var(--shadow-inset-dark), inset -2px -2px 5px var(--shadow-inset-light);
+            display: flex; flex-direction: column; gap: clamp(12px, 2.5vw, 18px);
+            position: sticky; top: clamp(10px, 3vw, 20px); max-height: calc(100vh - 2 * clamp(10px, 3vw, 20px));
+            overflow-y: auto; align-self: start;
+        }
+        /* --- Main Content Area --- */
+        #main-content {
+            grid-area: main; display: flex; flex-direction: column;
+            gap: clamp(15px, 3vw, 20px); min-width: 0;
+        }
+        #keyboard-container {
+            display: flex; flex-direction: column; align-items: center; gap: clamp(6px, 1.5vw, 10px);
+            padding: clamp(10px, 2vw, 15px); background-color: var(--keyboard-bg); border-radius: 10px;
+            box-shadow: inset 2px 2px 5px var(--shadow-inset-dark), inset -2px -2px 5px var(--shadow-inset-light);
+            width: 100%;
+        }
+        #visualizer-container {
+            width: 100%; height: clamp(100px, 15vh, 150px); max-height: 180px;
+            background-color: var(--canvas-bg); border-radius: 10px; padding: clamp(6px, 1.5vw, 10px);
+            box-shadow: inset 1px 1px 3px var(--shadow-inset-dark), inset -1px -1px 3px var(--shadow-inset-light);
+            display: flex; justify-content: center; align-items: center;
+        }
+        #wave-canvas { display: block; width: 100%; height: 100%; border-radius: 5px; }
+
+        /* --- Mobile Layout --- */
+        @media (max-width: 850px) {
+            body {
+                grid-template-columns: 1fr; grid-template-rows: auto auto 1fr;
+                grid-template-areas: "header" "main" "controls";
+                padding: clamp(10px, 3vw, 15px); gap: clamp(15px, 4vw, 20px);
+            }
+            #controls { position: static; max-height: none; width: 100%; max-width: 600px; margin: 0 auto; }
+            #main-content { max-width: 800px; margin: 0 auto; width: 100%; }
+            h1 { margin-bottom: clamp(10px, 3vw, 15px); }
+        }
+        /* --- Shared Control/Key Styles --- */
+        .keyboard-row{display:flex;justify-content:center;gap:clamp(4px,1vw,8px);width:100%;}
+        .keyboard-row:nth-child(2){padding-left:clamp(10px,3%,20px);padding-right:clamp(10px,3%,20px);}
+        .keyboard-row:nth-child(3){padding-left:clamp(25px,7%,45px);padding-right:clamp(25px,7%,45px);}
+        .key-button{min-width:clamp(30px,9vw,45px);padding:clamp(8px,2.5vw,12px) clamp(6px,2vw,10px);font-size:clamp(.8rem,3vw,1.1rem);font-weight:700;color:var(--key-text-color);cursor:pointer;text-align:center;text-transform:uppercase;flex:1 1 0;max-width:70px;background:linear-gradient(145deg,var(--key-bg-light),var(--key-bg-dark));border:1px solid var(--border-color);border-radius:clamp(4px,1.5vw,8px);box-shadow:3px 3px 7px var(--key-shadow-dark),-3px -3px 7px var(--key-shadow-light);transition:all .08s ease-in-out;outline:0;user-select:none;touch-action:manipulation;}
+        .key-button:hover{filter:brightness(1.15);}
+        .key-button:active,.key-button.pressed{background:linear-gradient(145deg,var(--key-pressed-bg-dark),var(--key-pressed-bg-light));box-shadow:inset 2px 2px 5px var(--key-pressed-shadow-dark),inset -2px -2px 5px var(--key-pressed-shadow-light);transform:scale(.96);color:var(--key-text-color);filter:brightness(.95);}
+        .control-section{border-bottom:1px solid var(--border-color);padding-bottom:clamp(10px,2vw,15px);margin-bottom:clamp(8px,1.5vw,10px);}
+        .control-section:last-child{border-bottom:none;padding-bottom:0;margin-bottom:0;}
+        .control-section h3{margin:0 0 clamp(10px,2vw,15px) 0;font-size:clamp(.9rem,2.5vw,1.1rem);color:var(--heading-color);font-weight:600;border-bottom:1px dashed var(--accent-color);padding-bottom:5px;display:inline-block;}
+        .control-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+        .control-group label{flex-basis:clamp(80px,25%,90px);flex-shrink:0;text-align:right;font-size:clamp(.8rem,2.2vw,.9rem);color:var(--text-color);padding-right:5px;}
+        .control-group input[type=range]{flex-grow:1;cursor:pointer;accent-color:var(--accent-color);min-width:80px;height:10px;background:var(--page-bg);border-radius:5px;border:1px solid var(--border-color);-webkit-appearance:none;appearance:none;}
+        .control-group input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;background:var(--accent-color);border-radius:50%;cursor:pointer;border:2px solid var(--page-bg);box-shadow:1px 1px 3px rgba(0,0,0,.3);}
+        .control-group input[type=range]::-moz-range-thumb{width:16px;height:16px;background:var(--accent-color);border-radius:50%;cursor:pointer;border:2px solid var(--page-bg);box-shadow:1px 1px 3px rgba(0,0,0,.3);}
+        .control-group output{min-width:25px;text-align:right;font-size:clamp(.75rem,2vw,.85rem);font-family:monospace;color:var(--text-color);}
+        .control-group select{padding:6px 25px 6px 12px;font-size:clamp(.8rem,2.2vw,.9rem);cursor:pointer;border-radius:5px;background-color:var(--controls-bg);color:var(--text-color);transition:background-color .2s ease,box-shadow .1s ease;box-shadow:1px 1px 2px rgba(0,0,0,.3),-1px -1px 2px rgba(255,255,255,.1);-webkit-appearance:none;-moz-appearance:none;appearance:none;background-repeat:no-repeat;background-position:right 8px top 50%;background-size:.65em auto;flex-grow:1;max-width:200px;border:1px solid var(--border-color);
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22var(--select-arrow-color-encoded)%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+        }
+        .control-group select:hover{filter:brightness(1.1);}
+        .control-group select:active{transform:translateY(1px);box-shadow:inset 1px 1px 2px rgba(0,0,0,.4);}
+
+        /* --- Utility Classes & Indicators --- */
+        #interaction-prompt{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:100;background-color:var(--prompt-bg);color:var(--prompt-text);padding:8px 15px;border-radius:5px;font-size:clamp(.8rem,2vw,.9rem);display:none;box-shadow:0 2px 5px rgba(0,0,0,.2);text-align:center;}
+        #loading-indicator{display:none;} /* Hide loading indicator */
+        .error-message{color:var(--error-text);background-color:var(--error-bg);padding:15px;margin:20px auto;border:1px solid var(--error-border);border-radius:5px;text-align:center;max-width:90%;width:500px;grid-column: 1 / -1;}
+
+    </style>
+</head>
+<body data-theme="default">
+
+    <h1>Clavier AZERTY Sonore Généré et Thématique</h1>
+    <!-- Loading indicator removed from HTML -->
+    <div id="interaction-prompt">Cliquez ou appuyez sur une touche pour activer l'audio</div>
+
+    <!-- Controls Column (Grid Area: controls) -->
+    <div id="controls">
+        <div class="control-section">
+            <h3>Paysage Sonore (Généré)</h3>
+            <div class="control-group">
+                <label for="rain-volume">Pluie:</label>
+                <input type="range" id="rain-volume" min="0" max="10" step="1" value="0">
+                <output for="rain-volume" id="rain-volume-output">0</output>
+            </div>
+            <div class="control-group">
+                <label for="wind-volume">Vent:</label>
+                <input type="range" id="wind-volume" min="0" max="10" step="1" value="0">
+                <output for="wind-volume" id="wind-volume-output">0</output>
+            </div>
+            <!-- Fire controls REMOVED -->
+            <!-- Noise controls REMOVED -->
+        </div>
+
+        <div class="control-section">
+             <h3>Touches du Clavier (Généré)</h3>
+            <div class="control-group">
+                <label for="key-sound-select">Son:</label>
+                <select id="key-sound-select">
+                    <option value="click" selected>Clic (Carré)</option>
+                    <option value="sine">Doux (Sinus)</option>
+                    <option value="pluck">Pincé (Triangle)</option>
+                    <option value="noise">Bruit Bref</option>
+                </select>
+            </div>
+        </div>
+
+         <div class="control-section">
+            <h3>Thème Visuel</h3>
+             <div class="control-group">
+                <label for="theme-select">Thème:</label>
+                <select id="theme-select">
+                    <option value="default">Défaut (Violet)</option>
+                    <option value="yellow">Noir & Jaune</option>
+                    <option value="contrast">Contraste Élevé</option>
+                    <option value="bw">Noir & Blanc</option>
+                    <option value="cream">Crème (Solarized)</option>
+                    <option value="purple">Violet Foncé</option>
+                </select>
+            </div>
+         </div>
+    </div><!-- End Controls -->
+
+    <!-- Main Content Area (Grid Area: main) -->
+    <div id="main-content">
+        <div id="keyboard-container"></div>
+        <div id="visualizer-container"> <canvas id="wave-canvas"></canvas> </div>
+    </div> <!-- End Main Content -->
+
+    <script>
+        (function() {
+            'use strict';
+
+            // --- DOM Element Caching ---
+            const interactionPrompt = document.getElementById('interaction-prompt');
+            const themeSelectElement = document.getElementById('theme-select');
+            const bodyElement = document.body;
+
+            // --- Utility Function for Safe Audio Start ---
+             function safeStartNode(node, sourceInfo, soundName) {
+                 if (!node || typeof node.start !== 'function' || !node.context || sourceInfo.hasStarted) {
+                     return;
+                 }
+                 try {
+                     if (node.context.state === 'running') {
+                         node.start();
+                         sourceInfo.isPlaying = true;
+                         sourceInfo.hasStarted = true; // Mark as started ONCE
+                         sourceInfo.needsStarting = false;
+                         console.log(`Started ${soundName} successfully.`);
+                     } else {
+                          console.log(`${soundName} start deferred (context not running).`);
+                          sourceInfo.needsStarting = true;
+                          sourceInfo.isPlaying = false;
+                     }
+                 } catch (e) {
+                      console.error(`Unexpected error starting ${soundName}: ${e}`);
+                 }
+             }
+
+            // --- AudioManager Class (Fire and Noise Removed) ---
+            class AudioManager {
+                 constructor() {
+                    this.audioContext = null; this.masterKeyGain = null; this.soundSources = {};
+                    // REMOVED fire and noise from config
+                    this.ambientSoundsConfig = {
+                        rain:  { generatorFunc: this.createRainNoise, defaultVol: 0.3, initialSlider: 2, isLooping: true, filter: { type: 'lowpass', freq: 500 } },
+                        wind:  { generatorFunc: this.createWindNoise, defaultVol: 0.4, initialSlider: 3, isLooping: true, filter: { type: 'bandpass', freq: 800, q: 0.8 } },
+                    };
+                    this.keySoundType = 'click'; this.keyBaseVolume = 0.5; this.initialKeySlider = 5;
+                    this.keyCurrentSliderValue = this.initialKeySlider;
+                    this.isInitialized = false; this.initError = null;
+
+                    try {
+                        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+                        // Dummy oscillator - FIXED: removed stop call
+                        const dummyOsc = this.audioContext.createOscillator();
+                        const dummyGain = this.audioContext.createGain();
+                        dummyGain.gain.value = 0;
+                        dummyOsc.connect(dummyGain);
+                        dummyGain.connect(this.audioContext.destination);
+                        safeStartNode(dummyOsc, {}, "dummy"); // Attempt start
+                        // No dummyOsc.stop() here
+
+                        this.masterKeyGain = this.audioContext.createGain();
+                        this.masterKeyGain.connect(this.audioContext.destination);
+                        this.setVolume('keys', this.initialKeySlider, true);
+
+                        if (this.audioContext.state === 'suspended') { this.showInteractionPrompt(); }
+
+                        this.setupAmbientSounds();
+                        this.isInitialized = true;
+                        console.log("AudioManager initialized. State:", this.audioContext.state);
+
+                    } catch (e) {
+                        // Provide a more informative error if context creation itself fails
+                        if (e.name === 'NotSupportedError') {
+                            this.initError = "Web Audio API n'est pas supporté par ce navigateur.";
+                        } else {
+                             this.initError = `Erreur initialisation AudioContext: ${e.message}`;
+                        }
+                        console.error(this.initError, e);
+                    }
+                }
+
+                resumeContext() { /* Logic unchanged, but will only affect rain/wind */
+                    if (!this.audioContext || this.audioContext.state === 'running') { return Promise.resolve(); }
+                    if (this.audioContext.state === 'closed') { console.warn("AudioContext is closed, cannot resume."); return Promise.reject("AudioContext est fermé."); }
+                    console.log("Tentative de reprise AudioContext...");
+                    return this.audioContext.resume().then(() => {
+                        console.log("AudioContext repris."); this.hideInteractionPrompt();
+                        for (const name in this.soundSources) { // Will only loop through rain, wind
+                            const sourceInfo = this.soundSources[name];
+                            if (sourceInfo) {
+                                const sliderVal = sourceInfo.currentSliderValue;
+                                this.setVolume(name, sliderVal, true);
+                                if (sourceInfo.needsStarting && sliderVal > 0) {
+                                    let startableNode = sourceInfo.node?.start ? sourceInfo.node : (sourceInfo.node?.node?.start ? sourceInfo.node.node : null);
+                                    safeStartNode(startableNode, sourceInfo, name);
+                                }
+                            }
+                        }
+                        this.setVolume('keys', this.keyCurrentSliderValue, true);
+                    }).catch(err => { console.error("Échec reprise:", err); this.initError = "Impossible d'activer l'audio."; throw err; });
+                }
+                showInteractionPrompt() { if (interactionPrompt) interactionPrompt.style.display = 'block'; }
+                hideInteractionPrompt() { if (interactionPrompt) interactionPrompt.style.display = 'none'; }
+
+                 // --- Sound Setup (Simplified) ---
+                 setupAmbientSounds() {
+                     for (const name in this.ambientSoundsConfig) { // Now only loops rain, wind
+                         const config = this.ambientSoundsConfig[name];
+                         if (!config?.generatorFunc) { console.warn(`Config/generator missing: ${name}`); continue; }
+
+                         const gainNode = this.audioContext.createGain(); gainNode.connect(this.audioContext.destination);
+                         const initialSlider = config.initialSlider ?? 0;
+                         const initialVolume = initialSlider === 0 ? 0 : config.defaultVol;
+                         gainNode.gain.setValueAtTime(initialVolume, this.audioContext.currentTime);
+
+                         const sourceInfo = {
+                             name: name, gain: gainNode, node: null, filterNode: null,
+                             intendedVolume: config.defaultVol, currentSliderValue: initialSlider,
+                             isPlaying: false, needsStarting: false, hasStarted: false,
+                         };
+                         this.soundSources[name] = sourceInfo;
+
+                         let sourceNode = null; let nodeToConnect = gainNode;
+
+                         if (config.filter) {
+                             const filterNode = this.audioContext.createBiquadFilter();
+                             filterNode.type = config.filter.type; filterNode.frequency.setValueAtTime(config.filter.freq, this.audioContext.currentTime);
+                             if (config.filter.q) { filterNode.Q.setValueAtTime(config.filter.q, this.audioContext.currentTime); }
+                             filterNode.connect(gainNode); nodeToConnect = filterNode; sourceInfo.filterNode = filterNode;
+                         }
+
+                         try {
+                            sourceNode = config.generatorFunc.call(this);
+                            if(sourceNode) {
+                                 sourceNode.loop = config.isLooping;
+                                 sourceNode.connect(nodeToConnect);
+                            } else { throw new Error("Generator returned null"); }
+                         } catch (genError) { console.error(`Error generating ${name}:`, genError); continue; }
+
+                         sourceInfo.node = sourceNode;
+
+                         if (config.isLooping && initialSlider > 0) {
+                             safeStartNode(sourceNode, sourceInfo, name);
+                         }
+                     }
+                 }
+
+                 // --- Noise Generators (Rain, Wind only) ---
+                 createRainNoise() { const bs=this.audioContext.sampleRate*2; const bf=this.audioContext.createBuffer(1,bs,this.audioContext.sampleRate); const o=bf.getChannelData(0); for(let i=0;i<bs;i++){o[i]=Math.random()*2-1;} const src=this.audioContext.createBufferSource(); src.buffer=bf; src.loop=true; return src; }
+                 createWindNoise() { const bs=this.audioContext.sampleRate*3; const bf=this.audioContext.createBuffer(1,bs,this.audioContext.sampleRate); const o=bf.getChannelData(0); let lo=0; for(let i=0;i<bs;i++){const w=Math.random()*2-1;o[i]=(lo+(0.02*w))/1.02;lo=o[i];o[i]*=3.5;} const src=this.audioContext.createBufferSource(); src.buffer=bf; src.loop=true; return src; }
+                 // createFireCrackling REMOVED
+                 // createMuffledNoise REMOVED
+
+                // --- Key Sounds (Logic Unchanged) ---
+                setKeySoundType(type) { this.keySoundType=type; console.log("Key sound:", type); }
+                playKeySound(character='A') { if(!this.isInitialized||this.initError||this.keyCurrentSliderValue===0||this.audioContext.state!=='running'){return;} switch(this.keySoundType){case 'sine':this.generateBasicKeySound(character,'sine',0.15);break; case 'pluck':this.generateBasicKeySound(character,'triangle',0.20);break; case 'noise':this.generateNoiseKeySound();break; case 'click': default:this.generateBasicKeySound(character,'square',0.10);break;} }
+                generateBasicKeySound(c,t,d){const bf=150;const cc=c.toUpperCase().charCodeAt(0);const f=bf*Math.pow(2,(cc-65)*2/12);const at=0.005;const dt=d;const sl=0.01;const now=this.audioContext.currentTime;const o=this.audioContext.createOscillator();const g=this.audioContext.createGain();o.connect(g);g.connect(this.masterKeyGain);o.type=t;o.frequency.setValueAtTime(f,now);g.gain.setValueAtTime(0,now);g.gain.linearRampToValueAtTime(1.0,now+at);g.gain.exponentialRampToValueAtTime(sl,now+at+dt);safeStartNode(o, {}, "key_osc");o.stop(now+at+dt+0.05);o.onended=()=>{try{o.disconnect();g.disconnect();}catch(e){}}; }
+                generateNoiseKeySound(){const now=this.audioContext.currentTime;const bs=this.audioContext.sampleRate*0.05;const bf=this.audioContext.createBuffer(1,bs,this.audioContext.sampleRate);const o=bf.getChannelData(0);for(let i=0;i<bs;i++){o[i]=Math.random()*2-1;}const src=this.audioContext.createBufferSource();src.buffer=bf;const flt=this.audioContext.createBiquadFilter();flt.type='bandpass';flt.frequency.setValueAtTime(1200,now);flt.Q.setValueAtTime(1,now);const g=this.audioContext.createGain();src.connect(flt);flt.connect(g);g.connect(this.masterKeyGain);g.gain.setValueAtTime(0,now);g.gain.linearRampToValueAtTime(1.0,now+0.005);g.gain.exponentialRampToValueAtTime(0.01,now+0.05);safeStartNode(src, {}, "key_noise");src.stop(now+0.06);src.onended=()=>{try{src.disconnect();flt.disconnect();g.disconnect();}catch(e){}}; }
+
+                // --- Volume Control (Simplified) ---
+                setVolume(soundName, sliderValue, forceUpdate = false) {
+                    if (!this.isInitialized && !forceUpdate && this.audioContext?.state !== 'running') return;
+                    const volumeLevel = Math.max(0, Math.min(10, sliderValue));
+
+                    if (soundName === 'keys') {
+                        this.keyCurrentSliderValue = volumeLevel;
+                        const targetGain = volumeLevel === 0 ? 0 : this.keyBaseVolume;
+                        if (this.masterKeyGain) { this.masterKeyGain.gain.setTargetAtTime(targetGain, this.audioContext.currentTime, 0.015); }
+                        return;
+                    }
+
+                    const sourceInfo = this.soundSources[soundName]; // Will only be rain or wind now
+                    if (sourceInfo?.gain) {
+                        sourceInfo.currentSliderValue = volumeLevel;
+                        const targetGain = volumeLevel === 0 ? 0 : sourceInfo.intendedVolume;
+                        if (volumeLevel > 0 && sourceInfo.needsStarting && this.ambientSoundsConfig[soundName]?.isLooping) {
+                             if (this.audioContext?.state === 'running') {
+                                 safeStartNode(sourceInfo.node, sourceInfo, soundName);
+                             } else { sourceInfo.needsStarting = true; }
+                        }
+                        if (this.audioContext?.state === 'running' || forceUpdate) {
+                            sourceInfo.gain.gain.setTargetAtTime(targetGain, this.audioContext.currentTime, 0.03);
+                        }
+                    } else { console.warn(`Volume control ignored: ${soundName}`); }
+                }
+            }
+
+            // --- Canvas Wave Visualizer Class ---
+            class WaveVisualizer { // Logic unchanged
+                 constructor(c){this.canvas=document.getElementById(c);this.ctx=this.canvas?.getContext('2d');this.width=0;this.height=0;this.amplitude=30;this.frequency=0.05;this.phase=0;this.pulseAmplitude=0;this.pulseDecay=0.92;this.pulseFrequency=0.1;this.isDrawing=false;this.animationFrameId=null;if(!this.ctx){console.error("Canvas context missing.");return;}this.resizeObserver=null;this.boundResize=this.resizeCanvas.bind(this);this.boundDraw=this.draw.bind(this);}
+                 initResizeObserver(){const container=this.canvas?.parentElement;if(!container||this.resizeObserver)return;this.resizeObserver=new ResizeObserver(this.boundResize);this.resizeObserver.observe(container);this.resizeCanvas();}
+                 disconnectResizeObserver(){this.resizeObserver?.disconnect();this.resizeObserver=null;}
+                 resizeCanvas(){const container=this.canvas?.parentElement;if(!container||!this.canvas)return;const style=getComputedStyle(container);const padX=parseFloat(style.paddingLeft)+parseFloat(style.paddingRight);const padY=parseFloat(style.paddingTop)+parseFloat(style.paddingBottom);const newWidth=Math.max(10,container.clientWidth-padX);const newHeight=Math.max(10,container.clientHeight-padY);if(newWidth!==this.width||newHeight!==this.height){this.canvas.width=newWidth;this.canvas.height=newHeight;this.width=this.canvas.width;this.height=this.canvas.height;}}
+                 start(){if(this.isDrawing||!this.ctx)return;this.isDrawing=true;this.initResizeObserver();this.animationFrameId=requestAnimationFrame(this.boundDraw);console.log("Vis started.");}
+                 stop(){this.isDrawing=false;this.disconnectResizeObserver();if(this.animationFrameId)cancelAnimationFrame(this.animationFrameId);this.animationFrameId=null;console.log("Vis stopped.");}
+                 draw(){if(!this.isDrawing||!this.ctx||this.width<=0||this.height<=0){this.animationFrameId=requestAnimationFrame(this.boundDraw);return;} this.ctx.clearRect(0,0,this.width,this.height);this.ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--wave-color').trim()||'#a8a5e6';this.ctx.lineWidth=2;this.ctx.beginPath();const cy=this.height/2;for(let x=0;x<this.width;x++){const yB=Math.sin(x*this.frequency+this.phase)*this.amplitude;const yP=this.pulseAmplitude>0.1?Math.sin(x*this.pulseFrequency+this.phase*0.5)*this.pulseAmplitude:0;const y=cy+yB+yP;if(x===0){this.ctx.moveTo(x,y);}else{this.ctx.lineTo(x,y);}}this.ctx.stroke();this.phase+=0.03;if(this.pulseAmplitude>0){this.pulseAmplitude*=this.pulseDecay;}if(this.pulseAmplitude<0.1){this.pulseAmplitude=0;}this.animationFrameId=requestAnimationFrame(this.boundDraw);}
+                 triggerPulse(i=1){if(!this.ctx||this.height<=0)return;const maxPulse=this.height*0.3;this.pulseAmplitude=Math.min(maxPulse,this.amplitude*1.5*i);}
+             }
+
+            // --- UI Manager Class ---
+            class UIManager { // Simplified for removed sounds
+                constructor(audioManager, visualizer) {
+                    this.audioManager = audioManager; this.visualizer = visualizer;
+                    this.keyboardContainer = document.getElementById('keyboard-container');
+                    this.controlsContainer = document.getElementById('controls');
+                    this.keySoundSelect = document.getElementById('key-sound-select');
+                    this.themeSelect = themeSelectElement;
+                    this.keyLayout = ['AZERTYUIOP', 'QSDFGHJKLM', 'WXCVBN']; this.keyMap = new Map();
+
+                    if (!this.keyboardContainer || !this.controlsContainer) { this.showError("UI elements essentiels manquants."); this.disableControls(); return; }
+                    if (this.audioManager.initError) { this.showError(this.audioManager.initError); }
+
+                    this.loadTheme(); this.createKeyboard(); this.setupControlListeners();
+                    this.setupKeyboardListener(); this.updateInitialControlState();
+                    this.visualizer?.start();
+                }
+                showError(m){const d=document.createElement('div');d.className='error-message';d.innerHTML=`<strong>Erreur:</strong> ${m}`;bodyElement.insertBefore(d,bodyElement.firstChild);}
+                disableControls(){const c=document.querySelectorAll('#controls input,#controls select,#keyboard-container button');c.forEach(el=>el.disabled=true);if(this.keyboardContainer)this.keyboardContainer.style.opacity='0.5';if(this.controlsContainer)this.controlsContainer.style.opacity='0.5';}
+                createKeyboard(){ this.keyboardContainer.innerHTML='';this.keyMap.clear();this.keyLayout.forEach(rs=>{const rd=document.createElement('div');rd.className='keyboard-row';rs.split('').forEach(c=>{const kb=document.createElement('button');kb.className='key-button';kb.textContent=c;const dk=c.toUpperCase();kb.dataset.key=dk;this.keyMap.set(dk,kb);kb.addEventListener('click',()=>{this.triggerKeyPress(dk);});rd.appendChild(kb);});this.keyboardContainer.appendChild(rd);}); }
+                triggerKeyPress(keyChar) { const kb=this.keyMap.get(keyChar.toUpperCase());if(!kb)return;this.audioManager.resumeContext().then(()=>{this.audioManager.playKeySound(keyChar);this.visualizer?.triggerPulse();kb.classList.add('pressed');setTimeout(()=>{kb.classList.remove('pressed');},150);}).catch(e=>{console.error("Cannot play/pulse",e);});}
+
+                loadTheme() { const savedTheme = localStorage.getItem('soundboardTheme') || 'default'; this.applyTheme(savedTheme); if (this.themeSelect) this.themeSelect.value = savedTheme; }
+                applyTheme(themeName) { bodyElement.dataset.theme = themeName; console.log(`Theme: ${themeName}`); }
+                saveTheme(themeName) { localStorage.setItem('soundboardTheme', themeName); }
+
+                setupControlListeners() {
+                    const setupVolumeSlider = (name) => {
+                        const sliderId = name === 'keys' ? 'key-volume' : `${name}-volume`;
+                        const outputId = name === 'keys' ? 'key-volume-output' : `${name}-volume-output`;
+                        const slider = document.getElementById(sliderId); const output = document.getElementById(outputId);
+                        if (!slider || !output) { console.warn(`Controls missing: ${sliderId}`); return; }
+                        slider.addEventListener('input', () => { const v=parseInt(slider.value,10); output.textContent=v; this.audioManager.resumeContext().then(()=>this.audioManager.setVolume(name,v)); });
+                    };
+                    // Setup only for existing sliders: rain, wind, keys
+                    ['rain', 'wind', 'keys'].forEach(setupVolumeSlider);
+
+                    if (this.keySoundSelect) { this.keySoundSelect.addEventListener('change',(e)=>{this.audioManager.setKeySoundType(e.target.value);this.audioManager.resumeContext();}); }
+                    if (this.themeSelect) { this.themeSelect.addEventListener('change',(e)=>{const nt=e.target.value;this.applyTheme(nt);this.saveTheme(nt);}); }
+                    const resumeHandler=()=>{this.audioManager.resumeContext().then(()=>{document.removeEventListener('click',resumeHandler,true);document.removeEventListener('keydown',resumeHandler,true);document.removeEventListener('touchstart',resumeHandler,true);});};
+                    if(this.audioManager.audioContext?.state==='suspended'){document.addEventListener('click',resumeHandler,{capture:true,once:true});document.addEventListener('keydown',resumeHandler,{capture:true,once:true});document.addEventListener('touchstart',resumeHandler,{capture:true,once:true});}
+                }
+                setupKeyboardListener() { document.addEventListener('keydown',(e)=>{if(e.metaKey||e.ctrlKey||e.altKey||e.repeat||/^(INPUT|SELECT|TEXTAREA)$/i.test(e.target.tagName)||e.target.isContentEditable){return;}const pk=e.key.toUpperCase();if(this.keyMap.has(pk)){e.preventDefault();this.triggerKeyPress(pk);}}); }
+
+                 updateInitialControlState() {
+                      const updateVolumeSliderUI = (name) => {
+                         const sliderId = name === 'keys' ? 'key-volume' : `${name}-volume`;
+                         const outputId = name === 'keys' ? 'key-volume-output' : `${name}-volume-output`;
+                         const slider = document.getElementById(sliderId); const output = document.getElementById(outputId); if (!slider || !output) return;
+                         let initialValue = 0;
+                         if (name === 'keys') { initialValue = this.audioManager.keyCurrentSliderValue; }
+                         else { const sourceInfo = this.audioManager.soundSources[name]; if (sourceInfo) { initialValue = sourceInfo.currentSliderValue; } }
+                         slider.value = initialValue; output.textContent = initialValue;
+                      };
+                      // Update only existing sliders
+                      ['rain', 'wind', 'keys'].forEach(updateVolumeSliderUI);
+                      if (this.keySoundSelect) this.keySoundSelect.value = this.audioManager.keySoundType;
+                 }
+            }
+
+            // --- Initialization ---
+            document.addEventListener('DOMContentLoaded', () => {
+                let audioManager, visualizer, uiManager;
+                try {
+                     audioManager = new AudioManager();
+                     visualizer = document.getElementById('wave-canvas') ? new WaveVisualizer('wave-canvas') : null;
+                     uiManager = new UIManager(audioManager, visualizer);
+                } catch (error) {
+                    console.error("Fatal error initializing application:", error);
+                    const body = bodyElement;
+                    if (body) { const d=document.createElement('div'); d.className='error-message'; d.innerHTML=`<h2>Erreur</h2><p>Init failed. Check console.</p><p><strong>Err:</strong> ${error.message||audioManager?.initError||'Unknown'}</p>`; body.insertBefore(d, body.firstChild); }
+                    const controls = document.querySelectorAll('input, button, select'); controls.forEach(c=>c.disabled=true);
+                }
+            });
+            window.addEventListener('beforeunload', () => { /* Optional: audioManager?.audioContext?.close(); */ console.log("Page unloading."); });
+
+        })();
+    </script>
+
+</body>
+</html>
