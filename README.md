@@ -17,3 +17,4 @@ Juste des trucs en vrac.
 - 2dshape.html : Forme 2D qui change de forme et de couleur
 - squarepropagation.html : Propagation de carrés de couleur sur la page
 - randgradi.html : Un gradient simple avec une évolution aléatoire
+- soundwave.html : Génération de sons aléatoire avec visualisation d'une onde et ses propriétés (plus ou moins).
