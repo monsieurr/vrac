@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Physics-based Audio Visualizer</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            background: #1a1a1a;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+
+        #visualizer {
+            border: 2px solid #333;
+            border-radius: 8px;
+            background: #000;
+            margin-top: 20px;
+        }
+
+        .info {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h2>Keyboard Wave Generator</h2>
+    <canvas id="visualizer"></canvas>
+    <div class="info" id="waveInfo"></div>
+
+    <script>
+        (() => {
+            'use strict';
+
+            class WaveVisualizer {
+                constructor() {
+                    this.canvas = document.getElementById('visualizer');
+                    this.ctx = this.canvas.getContext('2d');
+                    this.audioContext = null;
+                    this.keyMap = new Map();
+                    this.activeWaves = [];
+                    this.waveSpeed = 1;
+
+                    this.initCanvas();
+                    this.initKeyProfiles();
+                    this.initEventListeners();
+                    this.animate();
+                }
+
+                initCanvas() {
+                    const width = Math.min(window.innerWidth * 0.9, 800);
+                    this.canvas.width = width;
+                    this.canvas.height = 200;
+                }
+
+                initKeyProfiles() {
+                    const waveTypes = ['sine', 'square', 'sawtooth', 'triangle'];
+                    
+                    for (let i = 32; i <= 126; i++) { // ASCII printable characters
+                        const key = String.fromCharCode(i);
+                        this.keyMap.set(key, {
+                            frequency: Math.random() * 800 + 200,
+                            waveType: waveTypes[Math.floor(Math.random() * waveTypes.length)],
+                            amplitude: Math.random() * 0.2 + 0.05,
+                            attack: Math.random() * 0.3 + 0.1,
+                            decay: Math.random() * 0.5 + 0.2,
+                            wavelength: 0,
+                            period: 0,
+                            speed: 0
+                        });
+                    }
+                }
+
+                initEventListeners() {
+                    window.addEventListener('keypress', (e) => this.handleKeyPress(e));
+                    window.addEventListener('resize', () => this.initCanvas());
+                }
+
+                createAudioContext() {
+                    if (!this.audioContext) {
+                        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                }
+
+                playSound(keyProfile) {
+                    try {
+                        this.createAudioContext();
+                        
+                        const now = this.audioContext.currentTime;
+                        const oscillator = this.audioContext.createOscillator();
+                        const gainNode = this.audioContext.createGain();
+                        
+                        oscillator.type = keyProfile.waveType;
+                        oscillator.frequency.setValueAtTime(keyProfile.frequency, now);
+                        
+                        gainNode.gain.setValueAtTime(0, now);
+                        gainNode.gain.linearRampToValueAtTime(keyProfile.amplitude, now + keyProfile.attack);
+                        gainNode.gain.exponentialRampToValueAtTime(0.001, now + keyProfile.attack + keyProfile.decay);
+                        
+                        oscillator.connect(gainNode);
+                        gainNode.connect(this.audioContext.destination);
+                        
+                        oscillator.start();
+                        oscillator.stop(now + keyProfile.attack + keyProfile.decay + 0.1);
+
+                        // Calculate wave physics
+                        keyProfile.wavelength = 343 / keyProfile.frequency; // Speed of sound in air (343 m/s)
+                        keyProfile.period = 1 / keyProfile.frequency;
+                        keyProfile.speed = keyProfile.frequency * keyProfile.wavelength;
+
+                        this.activeWaves.push({
+                            ...keyProfile,
+                            startTime: Date.now()
+                        });
+                    } catch (error) {
+                        console.error('Audio error:', error);
+                    }
+                }
+
+                handleKeyPress(event) {
+                    event.preventDefault();
+                    const key = event.key.toLowerCase();
+                    
+                    if (this.keyMap.has(key)) {
+                        const profile = this.keyMap.get(key);
+                        this.playSound(profile);
+                        this.updateWaveInfo(profile);
+                    }
+                }
+
+                updateWaveInfo(profile) {
+                    const info = document.getElementById('waveInfo');
+                    info.innerHTML = `
+                        Amplitude: ${profile.amplitude.toFixed(2)}<br>
+                        Frequency: ${profile.frequency.toFixed(1)}Hz<br>
+                        Wavelength: ${profile.wavelength.toFixed(2)}m<br>
+                        Period: ${profile.period.toFixed(4)}s<br>
+                        Speed: ${profile.speed.toFixed(1)}m/s
+                    `;
+                }
+
+                drawWave() {
+                    this.ctx.fillStyle = '#000';
+                    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                    
+                    const currentTime = Date.now();
+                    this.activeWaves = this.activeWaves.filter(wave => {
+                        const age = currentTime - wave.startTime;
+                        if (age > 2000) return false;
+                        
+                        this.ctx.beginPath();
+                        this.ctx.strokeStyle = `hsla(${(wave.frequency / 4) % 360}, 100%, 50%, ${1 - age/2000})`;
+                        this.ctx.lineWidth = 2;
+                        
+                        const baseY = this.canvas.height / 2;
+                        const amplitude = baseY * wave.amplitude * (1 - age/2000);
+                        const frequencyFactor = wave.frequency / 100;
+                        
+                        for (let x = 0; x < this.canvas.width; x++) {
+                            const y = baseY + Math.sin(
+                                (x * frequencyFactor * 0.1) + 
+                                (currentTime * wave.speed * 0.05)
+                            ) * amplitude;
+                            
+                            if (x === 0) this.ctx.moveTo(x, y);
+                            else this.ctx.lineTo(x, y);
+                        }
+                        
+                        this.ctx.stroke();
+                        return true;
+                    });
+                }
+
+                animate() {
+                    this.drawWave();
+                    requestAnimationFrame(() => this.animate());
+                }
+            }
+
+            try {
+                new WaveVisualizer();
+                document.body.addEventListener('click', () => {
+                    // Initialize audio context on first user interaction
+                    if (!WaveVisualizer.audioContext) {
+                        WaveVisualizer.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                });
+            } catch (error) {
+                alert('Initialization error: ' + error.message);
+            }
+        })();
+    </script>
+</body>
+</html>
