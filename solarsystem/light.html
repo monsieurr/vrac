@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Room with Light Bulb</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Prevent scrollbars */
+            font-family: Arial, sans-serif;
+            background-color: #111; /* Dark background outside canvas */
+        }
+        canvas {
+            display: block; /* Remove potential extra space below canvas */
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            display: flex; /* Use flexbox for easier layout */
+            flex-direction: column;
+            gap: 10px; /* Spacing between control elements */
+        }
+        button {
+            background: #f44336; /* Start with 'Off' style as light is initially On */
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.2s ease; /* Smooth transition */
+        }
+        button.on { /* Style for when the light is ON */
+            background: #4CAF50;
+        }
+        .slider-container {
+            display: flex; /* Align items horizontally */
+            align-items: center; /* Center items vertically */
+            gap: 10px; /* Spacing within the slider container */
+        }
+        .slider-container label {
+            width: 70px; /* Adjust width */
+            text-align: right;
+        }
+        input[type="range"] {
+            width: 150px; /* Adjust width */
+            cursor: pointer;
+        }
+        .value-display {
+            width: 45px; /* Adjust width */
+            text-align: right;
+            font-variant-numeric: tabular-nums; /* Keep numbers aligned */
+        }
+    </style>
+
+    <!-- ===== IMPORT MAP ===== -->
+    <!-- This MUST come BEFORE the module script that uses these imports -->
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/"
+      }
+    }
+    </script>
+    <!-- ====================== -->
+
+</head>
+<body>
+    <!-- UI Controls Container -->
+    <div id="controls">
+        <button id="toggleLight" class="on">Turn Light Off</button>
+        <div class="slider-container">
+            <label for="hueSlider">Hue:</label>
+            <input type="range" id="hueSlider" min="0" max="360" value="60">
+            <span class="value-display" id="hueValue">60°</span>
+        </div>
+        <div class="slider-container">
+            <label for="intensitySlider">Intensity:</label>
+            <input type="range" id="intensitySlider" min="0" max="3" step="0.1" value="1.5">
+            <span class="value-display" id="intensityValue">1.5</span>
+        </div>
+    </div>
+
+    <!-- Main script using Three.js -->
+    <script type="module">
+        // Now use the bare specifiers defined in the import map
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js'; // The trailing slash in the map handles this path
+
+        // --- Core Setup ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; // Enable shadows
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer shadows
+        document.body.appendChild(renderer.domElement);
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.1); // Low ambient light
+        scene.add(ambientLight);
+
+        const lightInitialColor = 0xffffee;
+        const lightInitialIntensity = 1.5; // Match slider default
+        const pointLight = new THREE.PointLight(lightInitialColor, lightInitialIntensity, 50, 2); // Color, Intensity, Distance, Decay
+        pointLight.castShadow = true; // Make this light cast shadows
+        pointLight.shadow.mapSize.width = 1024; // Shadow map resolution
+        pointLight.shadow.mapSize.height = 1024;
+        scene.add(pointLight);
+
+        // --- Objects ---
+
+        // Room (Inverted Cube)
+        const roomSize = 10;
+        const roomGeometry = new THREE.BoxGeometry(roomSize, roomSize, roomSize);
+        const roomMaterial = new THREE.MeshStandardMaterial({
+            color: 0xcccccc,
+            side: THREE.BackSide,
+            roughness: 0.8,
+            metalness: 0.1
+         });
+        const room = new THREE.Mesh(roomGeometry, roomMaterial);
+        room.receiveShadow = true;
+        scene.add(room);
+
+        // Light Bulb Mesh
+        const bulbGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+        const bulbMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            emissive: lightInitialColor,
+            emissiveIntensity: 1.0,
+            roughness: 0.5,
+            metalness: 0.5
+        });
+        const bulbMesh = new THREE.Mesh(bulbGeometry, bulbMaterial);
+        bulbMesh.position.set(0, roomSize / 2 - 1.5, 0);
+        pointLight.position.copy(bulbMesh.position);
+        scene.add(bulbMesh);
+
+        // Optional: Wire/Fixture for the bulb
+        const wireHeight = roomSize / 2 - bulbMesh.position.y;
+        const wireGeometry = new THREE.CylinderGeometry(0.03, 0.03, wireHeight, 8);
+        const wireMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+        const wireMesh = new THREE.Mesh(wireGeometry, wireMaterial);
+        wireMesh.position.y = bulbMesh.position.y + wireHeight / 2;
+        scene.add(wireMesh);
+
+        // Example Objects in the Room
+        const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const boxMaterial = new THREE.MeshStandardMaterial({ color: 0x0088ff, roughness: 0.6 });
+        const box = new THREE.Mesh(boxGeometry, boxMaterial);
+        box.position.set(-2, -roomSize / 2 + 0.5, -2); // Place on the floor
+        box.castShadow = true;
+        box.receiveShadow = true;
+        scene.add(box);
+
+        const sphereGeometry = new THREE.SphereGeometry(0.7, 32, 32);
+        const sphereMaterial = new THREE.MeshStandardMaterial({ color: 0xff4444, metalness: 0.2, roughness: 0.4 });
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        sphere.position.set(2, -roomSize / 2 + 0.7, 2); // Place on the floor
+        sphere.castShadow = true;
+        sphere.receiveShadow = true;
+        scene.add(sphere);
+
+        // --- Camera and Controls ---
+        camera.position.set(0, 0, roomSize * 0.8);
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 0, 0);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxDistance = roomSize * 2;
+        controls.minDistance = 1;
+        controls.update();
+
+        // --- UI Interaction ---
+        const toggleButton = document.getElementById('toggleLight');
+        const hueSlider = document.getElementById('hueSlider');
+        const intensitySlider = document.getElementById('intensitySlider');
+        const hueValueSpan = document.getElementById('hueValue');
+        const intensityValueSpan = document.getElementById('intensityValue');
+
+        let isLightOn = true;
+
+        function updateLightProperties() {
+            const hue = parseInt(hueSlider.value);
+            const intensity = parseFloat(intensitySlider.value);
+            const saturation = 1.0;
+            const lightness = 0.5;
+
+            hueValueSpan.textContent = `${hue}°`;
+            intensityValueSpan.textContent = intensity.toFixed(1);
+
+            const color = new THREE.Color();
+            color.setHSL(hue / 360, saturation, lightness);
+
+            pointLight.color.set(color);
+            pointLight.intensity = isLightOn ? intensity : 0;
+
+            bulbMaterial.emissive.set(color);
+            bulbMaterial.emissiveIntensity = isLightOn ? 1.0 : 0.0;
+        }
+
+        toggleButton.addEventListener('click', () => {
+            isLightOn = !isLightOn;
+            toggleButton.textContent = isLightOn ? 'Turn Light Off' : 'Turn Light On';
+            toggleButton.classList.toggle('on', isLightOn);
+            updateLightProperties();
+        });
+
+        hueSlider.addEventListener('input', updateLightProperties);
+        intensitySlider.addEventListener('input', updateLightProperties);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update(); // Required if damping is enabled
+            renderer.render(scene, camera);
+        }
+
+        // --- Initial Setup Call ---
+        updateLightProperties(); // Set initial light color/intensity from sliders
+        animate(); // Start the animation loop
+
+    </script>
+</body>
+</html>

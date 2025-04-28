@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Solar System Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 13px;
+            line-height: 1.4;
+            max-width: 250px; /* Prevent help text from getting too wide */
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5em;
+            z-index: 10;
+        }
+        #focusIndicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info" class="info" style="display: none;">
+        Press 'H' to toggle this help<br>
+        Mouse Wheel: Zoom<br>
+        Right-Click + Drag: Rotate View<br>
+        Focus Keys:<br>
+        - [S] Sun, [M] Mercury, [V] Venus, [E] Earth,<br>
+        - [R] Mars, [J] Jupiter, [T] Saturn, [U] Uranus,<br>
+        - [N] Neptune, [O] Moon<br>
+        Camera Views:<br>
+        - [1] Top View<br>
+        - [2] Side View<br>
+        - [F] Toggle Follow Rotation (when focused)<br>
+        - [C] Clear focus/view (manual camera control)
+    </div>
+    <div id="focusIndicator" style="display: none;">Currently following: <span id="focusTarget">None</span></div>
+    <div id="loading">Loading Assets...</div>
+
+    <script async src="https://ga.jspm.io/npm:es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://esm.sh/three@0.159.0",
+                "three/addons/": "https://esm.sh/three@0.159.0/examples/jsm/",
+                "@tweenjs/tween.js": "https://esm.sh/@tweenjs/tween.js@21.0.0"
+             }
+        }
+        </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import TWEEN from '@tweenjs/tween.js';
+
+        // --- Configuration ---
+        const CONFIG = {
+            // Textures - ADDED EARTH NIGHT LIGHTS
+            textures: {
+                sun: 'objects_textures/soleil/sunmap.jpg',
+                mercury: 'objects_textures/mercure/mercurymap.jpg',
+                venus: 'objects_textures/venus/venusmap.jpg',
+                earth: 'objects_textures/terre/earthmap1k.jpg',
+                earthSpecular: 'objects_textures/terre/earthspec1k.jpg',
+                earthClouds: 'objects_textures/terre/earthcloudmaptrans.jpg',
+                earthLights: 'objects_textures/terre/earthlights1k.jpg', // <-- ADDED
+                moon: 'objects_textures/moon/Moon_texture.jpg',
+                mars: 'objects_textures/mars/marsmap1k.jpg',
+                jupiter: 'objects_textures/jupiter/jupitermap.jpg',
+                saturn: 'objects_textures/saturne/saturnmap.jpg',
+                saturnRings: 'objects_textures/saturne/saturnringcolor.jpg',
+                uranus: 'objects_textures/uranus/uranusmap.jpg',
+                neptune: 'objects_textures/neptune/neptunemap.jpg',
+                starfield: null
+            },
+            // Sizes and Distances
+            sun: { radius: 12, rotationSpeed: 0.01 },
+            mercury: { radius: 0.8, rotationSpeed: 0.08, orbitRadius: 20, orbitSpeed: 0.04, orbitTilt: 0.034 },
+            venus: { radius: 1.9, rotationSpeed: 0.02, orbitRadius: 30, orbitSpeed: 0.015, orbitTilt: 0.009 },
+            earth: { radius: 2, rotationSpeed: 0.1, orbitRadius: 40, orbitSpeed: 0.01, orbitTilt: 0.0167 },
+            moon: { radius: 0.5, rotationSpeed: 0.05, orbitRadius: 5, orbitSpeed: 0.08 },
+            mars: { radius: 1.2, rotationSpeed: 0.09, orbitRadius: 55, orbitSpeed: 0.008, orbitTilt: 0.093 },
+            jupiter: { radius: 5, rotationSpeed: 0.3, orbitRadius: 75, orbitSpeed: 0.004, orbitTilt: 0.048 },
+            saturn: { radius: 4, rotationSpeed: 0.2, orbitRadius: 100, orbitSpeed: 0.003, orbitTilt: 0.054 },
+            saturnRings: { innerRadius: 4.5, outerRadius: 8 },
+            uranus: { radius: 3, rotationSpeed: 0.15, orbitRadius: 130, orbitSpeed: 0.002, orbitTilt: 0.047, axialTilt: 97.8 },
+            neptune: { radius: 2.8, rotationSpeed: 0.1, orbitRadius: 160, orbitSpeed: 0.001, orbitTilt: 0.009 },
+
+            // Stars
+            stars: { count: 4000, distance: 1000, size: 0.8 },
+
+            // Camera & Controls
+            camera: {
+                fov: 45, near: 0.1, far: 2000,
+                initialPosition: { x: 0, y: 30, z: 120 },
+            },
+            controls: {
+                minDistance: 5, maxDistance: 500, // Adjusted max distance for wider views
+                dampingFactor: 0.05,
+                autoRotateSpeed: 0.5 // Speed for the 'F' follow rotation
+            },
+
+            // Lighting (Using previous adjustments for contrast)
+            ambientLight: { intensity: 0.05 },
+            sunLight: { intensity: 1500, shadowMapSize: 2048 }, // Intensity might need tweaking with emissive maps
+
+            // Animation smoothness
+            animation: { tweenDuration: 1500 } // ms
+        };
+
+        // --- Utility Functions ---
+        const Utils = {
+            // createStarField, createCelestialBody, createOrbit, createRings remain the same
+            createStarField: (scene, config) => {
+                const vertices = [];
+                for (let i = 0; i < config.count; i++) {
+                    const theta = 2 * Math.PI * Math.random();
+                    const phi = Math.acos(2 * Math.random() - 1);
+                    const r = config.distance * (0.8 + Math.random() * 0.2);
+
+                    const x = r * Math.sin(phi) * Math.cos(theta);
+                    const y = r * Math.sin(phi) * Math.sin(theta);
+                    const z = r * Math.cos(phi);
+                    vertices.push(x, y, z);
+                }
+
+                const geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+
+                const material = new THREE.PointsMaterial({
+                    color: 0xFFFFFF,
+                    size: config.size,
+                    sizeAttenuation: true,
+                    transparent: true,
+                    opacity: 0.8
+                });
+
+                const starField = new THREE.Points(geometry, material);
+                scene.add(starField);
+                return starField;
+            },
+
+            createCelestialBody: (radius, materialOptions) => {
+                const geometry = new THREE.SphereGeometry(radius, 64, 64);
+                const options = materialOptions || {};
+                const material = new THREE.MeshStandardMaterial(options);
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                return mesh;
+            },
+
+            createOrbit: (radius, tilt = 0) => {
+                const curve = new THREE.EllipseCurve(
+                    0, 0,
+                    radius, radius,
+                    0, 2 * Math.PI,
+                    false,
+                    0
+                );
+
+                const points = curve.getPoints(128);
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = new THREE.LineBasicMaterial({
+                    color: 0x555555,
+                    transparent: true,
+                    opacity: 0.4
+                });
+
+                const line = new THREE.Line(geometry, material);
+                line.rotation.x = Math.PI / 2;
+                if (tilt) {
+                     line.rotation.y = tilt;
+                }
+                return line;
+            },
+
+            createRings: (innerRadius, outerRadius, texture) => {
+                const ringGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 64);
+                const pos = ringGeometry.attributes.position;
+                const v3 = new THREE.Vector3();
+                const uv = [];
+                for (let i = 0; i < pos.count; i++) {
+                    v3.fromBufferAttribute(pos, i);
+                    const angle = Math.atan2(v3.y, v3.x);
+                    const radius = Math.sqrt(v3.x * v3.x + v3.y * v3.y);
+                    const u = (radius - innerRadius) / (outerRadius - innerRadius);
+                    const v = (angle / (2 * Math.PI)) + 0.5;
+                    uv.push(u, v);
+                }
+                ringGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+                ringGeometry.attributes.uv.needsUpdate = true;
+
+                const ringMaterial = new THREE.MeshStandardMaterial({
+                    map: texture,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    alphaTest: 0.01,
+                    opacity: 0.9,
+                    roughness: 0.8,
+                    metalness: 0.1
+                });
+                const rings = new THREE.Mesh(ringGeometry, ringMaterial);
+                rings.receiveShadow = true;
+                 // Apply parent planet's axial tilt if available (e.g., Saturn)
+                 // This part is handled in createCelestialBodies where rings are added
+                return rings;
+            },
+
+
+            loadTexture: async (loader, url, bodyName) => {
+                if (!url) return null;
+                try {
+                    // console.log(`Loading texture for ${bodyName}: ${url}`);
+                    const texture = await loader.loadAsync(url);
+                    texture.colorSpace = THREE.SRGBColorSpace;
+                    // console.log(`Successfully loaded texture for ${bodyName}`);
+                    return texture;
+                } catch (error) {
+                    console.error(`Failed to load texture for ${bodyName}: ${url}`, error);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 1; canvas.height = 1;
+                    const context = canvas.getContext('2d');
+                    context.fillStyle = '#808080'; // Grey color
+                    context.fillRect(0, 0, 1, 1);
+                    const placeholderTexture = new THREE.CanvasTexture(canvas);
+                    placeholderTexture.colorSpace = THREE.SRGBColorSpace;
+                    return placeholderTexture;
+                }
+            }
+        };
+
+        // --- Main Application Class ---
+        class SolarSystem {
+            constructor() {
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+                this.controls = null;
+                this.planets = {};
+                this.planetSystems = {};
+                this.orbitAngles = {};
+                this.clock = new THREE.Clock();
+                this.textureLoader = new THREE.TextureLoader();
+                this.isInitialized = false;
+
+                // Focus & View State
+                this.currentFocusObject = null;
+                this.currentFocusName = "None";
+                this.focusOffset = new THREE.Vector3(0, 0, 0);
+                this.userControlActive = false;
+                this.isFollowingRotation = false; // New state for 'F' mode
+
+                // DOM Elements
+                this.loadingManager = document.getElementById('loading');
+                this.infoPanel = document.getElementById('info');
+                this.focusIndicator = document.getElementById('focusIndicator');
+                this.focusTargetText = document.getElementById('focusTarget');
+            }
+
+            async init() {
+                try {
+                    this.setupScene();
+                    this.setupCamera();
+                    this.setupRenderer();
+                    this.setupLights();
+                    await this.loadAssets();
+                    this.createCelestialBodies();
+                    Utils.createStarField(this.scene, CONFIG.stars);
+                    this.setupControls();
+                    this.setupEventListeners();
+
+                    this.isInitialized = true;
+                    this.loadingManager.style.display = 'none';
+                    this.infoPanel.style.display = 'block';
+                    this.focusIndicator.style.display = 'block';
+                    this.animate();
+
+                    // Start focused on Earth
+                    setTimeout(() => this.setFocus("Earth", this.planets.earth, new THREE.Vector3(0, 5, 15)), 500);
+
+                    return true;
+                } catch (error) {
+                    console.error('Initialization failed:', error);
+                    this.loadingManager.textContent = `Error loading assets: ${error.message}`;
+                    this.loadingManager.style.color = 'red';
+                    return false;
+                }
+            }
+
+            setupScene() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x000000);
+            }
+
+            setupCamera() {
+                const { fov, near, far, initialPosition } = CONFIG.camera;
+                this.camera = new THREE.PerspectiveCamera(fov, window.innerWidth / window.innerHeight, near, far);
+                this.camera.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
+                this.camera.lookAt(0, 0, 0);
+            }
+
+            setupRenderer() {
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+                this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 0.9; // Adjusted exposure
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                document.body.appendChild(this.renderer.domElement);
+            }
+
+            setupLights() {
+                // Sun Point Light
+                const sunLight = new THREE.PointLight(0xffffff, CONFIG.sunLight.intensity);
+                sunLight.position.set(0, 0, 0);
+                sunLight.castShadow = true;
+                sunLight.shadow.mapSize.width = CONFIG.sunLight.shadowMapSize;
+                sunLight.shadow.mapSize.height = CONFIG.sunLight.shadowMapSize;
+                sunLight.shadow.camera.near = 5;
+                sunLight.shadow.camera.far = CONFIG.neptune.orbitRadius * 2.2;
+                sunLight.shadow.bias = -0.0005;
+                 // Adjust decay for more realistic falloff (optional, 2 is physically correct)
+                sunLight.decay = 2; // Default is 1 (linear), 2 is quadratic (more realistic)
+                this.scene.add(sunLight);
+
+                // Ambient Light
+                const ambient = new THREE.AmbientLight(0xffffff, CONFIG.ambientLight.intensity);
+                this.scene.add(ambient);
+            }
+
+             setupControls() {
+                const { minDistance, maxDistance, dampingFactor } = CONFIG.controls;
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = dampingFactor;
+                this.controls.screenSpacePanning = false;
+                this.controls.minDistance = minDistance;
+                this.controls.maxDistance = maxDistance; // Allow zooming out further
+                this.controls.target.set(0, 0, 0);
+
+                this.controls.addEventListener('start', () => {
+                    // If user interacts, disable auto-follow and auto-rotation
+                    if (this.currentFocusObject || this.isFollowingRotation) {
+                        console.log("User control started, disabling auto modes.");
+                        this.userControlActive = true;
+                        this.isFollowingRotation = false; // Stop following rotation
+                        this.controls.autoRotate = false; // Ensure orbit controls autorotate is off
+                        this.controls.enableRotate = true; // Ensure manual rotation is enabled
+                        // Optionally update focus indicator text
+                         if (!this.currentFocusObject) { // If interaction clears a view rather than focus
+                             this.focusTargetText.textContent = "Manual Control";
+                         }
+                    }
+                });
+
+                this.controls.update();
+            }
+
+            setupEventListeners() {
+                window.addEventListener('resize', this.onWindowResize.bind(this), false);
+
+                window.addEventListener('keydown', (event) => {
+                    const key = event.key.toLowerCase();
+                    let target = null;
+                    let name = "";
+                    let offset = new THREE.Vector3();
+
+                    // Handle view changes first
+                    if (key === '1') {
+                        this.setViewTop();
+                        return;
+                    }
+                    if (key === '2') {
+                        this.setViewSide();
+                        return;
+                    }
+                     if (key === 'f') {
+                        this.toggleFollowRotation();
+                        return;
+                    }
+
+
+                    // Handle focus changes
+                    switch (key) {
+                        case 'h':
+                            this.infoPanel.style.display = this.infoPanel.style.display === 'none' ? 'block' : 'none';
+                            return;
+                        case 's': target = this.planets.sun; name = "Sun"; offset.set(0, 20, 100); break;
+                        case 'm': target = this.planets.mercury; name = "Mercury"; offset.set(0, 3, 8); break;
+                        case 'v': target = this.planets.venus; name = "Venus"; offset.set(0, 3, 10); break;
+                        case 'e': target = this.planets.earth; name = "Earth"; offset.set(0, 5, 15); break;
+                        case 'r': target = this.planets.mars; name = "Mars"; offset.set(0, 3, 10); break;
+                        case 'j': target = this.planets.jupiter; name = "Jupiter"; offset.set(0, 10, 25); break;
+                        case 't': target = this.planets.saturn; name = "Saturn"; offset.set(0, 10, 25); break;
+                        case 'u': target = this.planets.uranus; name = "Uranus"; offset.set(0, 5, 15); break;
+                        case 'n': target = this.planets.neptune; name = "Neptune"; offset.set(0, 5, 15); break;
+                        case 'o': target = this.planets.moon; name = "Moon"; offset.set(0, 2, 5); break;
+                        case 'c':
+                            this.clearFocus(); // Also clears fixed views and follow rotation
+                            return;
+                        default:
+                            return; // Ignore other keys for focus
+                    }
+
+                    if (target) {
+                        this.setFocus(name, target, offset);
+                    }
+                });
+            }
+
+
+            async loadAssets() {
+                this.loadingManager.textContent = "Loading Textures...";
+                console.log("Starting texture loading...");
+
+                const textureEntries = Object.entries(CONFIG.textures);
+                const texturePromises = textureEntries.map(([key, url]) => {
+                    if (!url) {
+                        return Promise.resolve({ key, texture: null });
+                    }
+                    return Utils.loadTexture(this.textureLoader, url, key)
+                        .then(texture => ({ key, texture }));
+                });
+
+                const loadedTextures = await Promise.all(texturePromises);
+
+                this.textures = {};
+                loadedTextures.forEach(({ key, texture }) => {
+                    this.textures[key] = texture;
+                });
+
+                 // Verification (optional but good practice)
+                const essential = ['sun', 'mercury', 'venus', 'earth', 'moon', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'earthLights']; // Added earthLights
+                essential.forEach(key => {
+                    if (!this.textures[key] && CONFIG.textures[key]) { // Check if it was supposed to load
+                        console.warn(`Essential texture '${key}' failed to load or was not provided.`);
+                        // Handle missing essential textures if necessary (e.g., stop initialization)
+                    }
+                });
+
+
+                console.log("Texture loading complete.");
+                this.loadingManager.textContent = "Creating Scene...";
+            }
+
+
+            createCelestialBodies() {
+                // --- Sun ---
+                this.planets.sun = Utils.createCelestialBody(CONFIG.sun.radius, {
+                    map: this.textures.sun,
+                    emissiveMap: this.textures.sun,
+                    emissive: 0xffddaa,
+                    emissiveIntensity: 1.5, // Keep sun glowing
+                    roughness: 1.0,
+                    metalness: 0.0
+                });
+                this.planets.sun.castShadow = false;
+                this.planets.sun.receiveShadow = false;
+                this.scene.add(this.planets.sun);
+
+                // --- Planets ---
+                const planetData = [
+                     // ADDED Earth lights texture reference
+                    { name: 'earth', config: CONFIG.earth, textures: { map: this.textures.earth, specularMap: this.textures.earthSpecular, emissiveMap: this.textures.earthLights } },
+                    { name: 'mercury', config: CONFIG.mercury, textures: { map: this.textures.mercury } },
+                    { name: 'venus', config: CONFIG.venus, textures: { map: this.textures.venus } },
+                    { name: 'mars', config: CONFIG.mars, textures: { map: this.textures.mars } },
+                    { name: 'jupiter', config: CONFIG.jupiter, textures: { map: this.textures.jupiter } },
+                    { name: 'saturn', config: CONFIG.saturn, textures: { map: this.textures.saturn } },
+                    { name: 'uranus', config: CONFIG.uranus, textures: { map: this.textures.uranus } },
+                    { name: 'neptune', config: CONFIG.neptune, textures: { map: this.textures.neptune } },
+                ];
+
+                planetData.forEach(data => {
+                    const { name, config, textures } = data;
+
+                    this.planetSystems[name] = new THREE.Object3D();
+                    this.scene.add(this.planetSystems[name]);
+
+                    const orbitLine = Utils.createOrbit(config.orbitRadius, config.orbitTilt);
+                    this.scene.add(orbitLine);
+
+                    const materialOptions = {
+                        map: textures.map,
+                        specularMap: textures.specularMap,
+                        specular: textures.specularMap ? 0xaaaaaa : undefined,
+                         // --- ADDED Emissive properties for Earth Lights ---
+                        emissiveMap: textures.emissiveMap, // Will be earthLights for Earth, undefined otherwise
+                        emissive: textures.emissiveMap ? 0xffffff : 0x000000, // White emissive color if map exists
+                        emissiveIntensity: textures.emissiveMap ? 1.0 : 0, // Intensity for the lights (adjust as needed)
+                         // --- End Emissive ---
+                        roughness: 0.8,
+                        metalness: 0.1,
+                    };
+                    this.planets[name] = Utils.createCelestialBody(config.radius, materialOptions);
+                    this.planets[name].position.set(config.orbitRadius, 0, 0);
+                    this.planetSystems[name].add(this.planets[name]);
+
+                    if (config.axialTilt) {
+                        this.planets[name].rotation.z = THREE.MathUtils.degToRad(config.axialTilt);
+                    }
+                    this.orbitAngles[name] = Math.random() * Math.PI * 2;
+
+
+                     // --- Special Cases (Clouds, Moon, Rings) within the loop if possible, or after ---
+
+                    if (name === 'earth') {
+                         // Earth Cloud Layer
+                        if (this.textures.earthClouds) {
+                            const cloudGeometry = new THREE.SphereGeometry(config.radius + 0.03, 64, 64);
+                            const cloudMaterial = new THREE.MeshStandardMaterial({
+                                map: this.textures.earthClouds,
+                                alphaMap: this.textures.earthClouds,
+                                transparent: true,
+                                opacity: 0.5, // Slightly reduced opacity
+                                blending: THREE.NormalBlending,
+                                depthWrite: false,
+                                roughness: 0.9,
+                                metalness: 0.0
+                            });
+                            const clouds = new THREE.Mesh(cloudGeometry, cloudMaterial);
+                            clouds.castShadow = true;
+                            clouds.userData.isCloud = true;
+                            clouds.userData.rotationSpeed = config.rotationSpeed * 0.3;
+                            this.planets.earth.add(clouds); // Add clouds to Earth mesh
+                        }
+
+                        // --- Moon (as child of Earth) ---
+                        const moonOrbitSystem = new THREE.Object3D();
+                        this.planets.earth.add(moonOrbitSystem);
+                        this.planetSystems.moon = moonOrbitSystem;
+
+                        const moonOrbitLine = Utils.createOrbit(CONFIG.moon.orbitRadius);
+                         // Make moon orbit line relative to earth's tilt? For simplicity, keep it aligned with earth's equator plane for now
+                        this.planets.earth.add(moonOrbitLine);
+
+                        this.planets.moon = Utils.createCelestialBody(CONFIG.moon.radius, {
+                            map: this.textures.moon,
+                            roughness: 0.9,
+                            metalness: 0.1
+                        });
+                        this.planets.moon.position.set(CONFIG.moon.orbitRadius, 0, 0);
+                        moonOrbitSystem.add(this.planets.moon);
+                        this.orbitAngles.moon = Math.random() * Math.PI * 2;
+                    }
+
+                     if (name === 'saturn') {
+                         // --- Saturn Rings ---
+                         if (this.textures.saturnRings) {
+                            const rings = Utils.createRings(
+                                CONFIG.saturnRings.innerRadius,
+                                CONFIG.saturnRings.outerRadius,
+                                this.textures.saturnRings
+                            );
+                             // Align rings with Saturn's equator (handle potential axial tilt)
+                            rings.rotation.x = Math.PI / 2; // Base rotation
+                            if (config.axialTilt) {
+                                // If Saturn is tilted, tilt the rings too. The rings are added as child,
+                                // so their rotation is relative. Tilting around Y might be needed depending on how axial tilt is applied.
+                                // Let's assume the planet's tilt handles ring orientation correctly as a child.
+                                // If not, specific ring rotation adjustment might be needed here.
+                                // rings.rotation.y += THREE.MathUtils.degToRad(config.axialTilt); // Example if needed
+                            }
+                            this.planets.saturn.add(rings);
+                        }
+                     }
+                });
+            }
+
+
+            animate(time) {
+                if (!this.isInitialized) return;
+
+                requestAnimationFrame(this.animate.bind(this));
+
+                const delta = this.clock.getDelta();
+                TWEEN.update(time);
+
+                // --- Handle Auto Rotation Mode ('F') ---
+                if (this.isFollowingRotation && this.currentFocusObject) {
+                    // Calculate rotation angle based on delta time
+                    const angle = CONFIG.controls.autoRotateSpeed * delta * Math.PI / 4; // Adjust speed/divisor as needed
+
+                    // Get target position
+                    const targetWorldPosition = new THREE.Vector3();
+                    this.currentFocusObject.getWorldPosition(targetWorldPosition);
+
+                    // Rotate the existing camera offset around the target's Y-axis
+                    this.focusOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+
+                    // Calculate new camera position
+                    const newCamPos = targetWorldPosition.clone().add(this.focusOffset);
+                    this.camera.position.copy(newCamPos);
+
+                    // Always look at the target
+                    this.camera.lookAt(targetWorldPosition);
+                    this.controls.target.copy(targetWorldPosition); // Keep controls target updated
+
+                } else {
+                     // --- Handle Standard Focus Follow (if active and not user-controlled) ---
+                     this.updateCameraFocus(); // Update lerped focus follow
+
+                     // --- Update OrbitControls (only if not in auto-rotate or tweening) ---
+                     // Controls should be updated if user is in control OR no focus/auto-rotate is active.
+                     if (this.userControlActive || (!this.currentFocusObject && !this.isFollowingRotation)) {
+                         this.controls?.update();
+                     }
+                }
+
+
+                // --- Update Planet Rotations and Orbits ---
+                Object.keys(this.planets).forEach(planetName => {
+                    const planet = this.planets[planetName];
+                    const config = CONFIG[planetName];
+                    if (!config) return;
+
+                    // 1. Axial Rotation
+                    if (config.rotationSpeed) {
+                         if (config.axialTilt) {
+                             planet.rotateY(config.rotationSpeed * delta); // Rotate around local Y for tilted planets
+                         } else {
+                            planet.rotation.y += config.rotationSpeed * delta; // Rotate around world Y
+                         }
+                    }
+                    if (planetName === 'sun' && config.rotationSpeed !== 0) { // Ensure sun rotates if speed > 0
+                       planet.rotation.y += config.rotationSpeed * delta;
+                    }
+
+
+                    // 2. Orbital Rotation (Planet around Sun, Moon around Earth)
+                    const orbitSystem = this.planetSystems[planetName];
+                    if (orbitSystem && config.orbitSpeed) {
+                        this.orbitAngles[planetName] += config.orbitSpeed * delta;
+                        orbitSystem.rotation.y = this.orbitAngles[planetName];
+                    }
+
+                     // 3. Earth Cloud Rotation
+                     if (planetName === 'earth') {
+                         const clouds = planet.children.find(child => child.userData.isCloud);
+                         if (clouds && clouds.userData.rotationSpeed) {
+                             clouds.rotation.y += clouds.userData.rotationSpeed * delta;
+                         }
+                     }
+                });
+
+                this.render();
+            }
+
+            render() {
+                this.renderer.render(this.scene, this.camera);
+            }
+
+            onWindowResize() {
+                if (!this.isInitialized) return;
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            // --- Camera Control Functions ---
+
+            tweenCamera(targetPosition, targetLookAt) {
+                // Disable controls during camera movement and cancel any active modes
+                this.controls.enabled = false;
+                this.userControlActive = true; // Treat this as user action to prevent focus follow
+                this.isFollowingRotation = false;
+                if (this.currentFocusObject) { // Clear focus if setting a general view
+                     this.currentFocusObject = null;
+                     this.currentFocusName = "View"; // Indicate a view is set
+                     this.focusTargetText.textContent = "View";
+                }
+
+
+                new TWEEN.Tween(this.camera.position)
+                    .to(targetPosition, CONFIG.animation.tweenDuration)
+                    .easing(TWEEN.Easing.Quadratic.InOut)
+                    .start();
+
+                new TWEEN.Tween(this.controls.target)
+                    .to(targetLookAt, CONFIG.animation.tweenDuration)
+                    .easing(TWEEN.Easing.Quadratic.InOut)
+                    .onComplete(() => {
+                        this.controls.enabled = true; // Re-enable controls after tween
+                        this.controls.enableRotate = true; // Ensure rotation is enabled
+                        this.userControlActive = true; // Stay in manual control after view change
+                    })
+                    .start();
+            }
+
+            setViewTop() {
+                console.log("Setting Top View");
+                const targetPos = new THREE.Vector3(0, CONFIG.neptune.orbitRadius * 1.5, 0.1); // Look down from above Y axis slightly off-zero Z
+                const targetLookAt = new THREE.Vector3(0, 0, 0); // Look at the center
+                this.tweenCamera(targetPos, targetLookAt);
+                 this.focusTargetText.textContent = "Top View";
+            }
+
+            setViewSide() {
+                console.log("Setting Side View");
+                const targetPos = new THREE.Vector3(CONFIG.neptune.orbitRadius * 1.5, 20, 0); // Look from the side (X axis), slightly elevated
+                const targetLookAt = new THREE.Vector3(0, 0, 0); // Look at the center
+                this.tweenCamera(targetPos, targetLookAt);
+                 this.focusTargetText.textContent = "Side View";
+            }
+
+
+            setFocus(objectName, targetObject, offset) {
+                if (!this.controls || !targetObject) return;
+
+                console.log(`Setting focus to: ${objectName}`);
+                this.isFollowingRotation = false; // Stop follow rotation when setting new focus
+                this.userControlActive = false;   // Allow focus follow to take over
+                this.controls.enableRotate = true; // Ensure manual rotation is possible if user interacts
+                this.currentFocusObject = targetObject;
+                this.currentFocusName = objectName;
+                this.focusOffset = offset.clone();
+                this.focusTargetText.textContent = objectName;
+                this.controls.enabled = false; // Disable controls during tween
+
+                const targetWorldPosition = new THREE.Vector3();
+                targetObject.getWorldPosition(targetWorldPosition);
+                const targetCamPos = targetWorldPosition.clone().add(this.focusOffset);
+
+                // Tween camera position
+                new TWEEN.Tween(this.camera.position)
+                    .to(targetCamPos, CONFIG.animation.tweenDuration)
+                    .easing(TWEEN.Easing.Quadratic.InOut)
+                    .start();
+
+                // Tween controls target
+                new TWEEN.Tween(this.controls.target)
+                    .to(targetWorldPosition, CONFIG.animation.tweenDuration)
+                    .easing(TWEEN.Easing.Quadratic.InOut)
+                    .onComplete(() => {
+                        this.controls.enabled = true;
+                        this.controls.target.copy(targetWorldPosition); // Ensure target is exact
+                        // Initial update after tween if not interrupted
+                        if (!this.userControlActive) {
+                            this.updateCameraFocus();
+                        }
+                    })
+                    .start();
+            }
+
+            clearFocus() {
+                console.log("Clearing focus and view.");
+                this.currentFocusObject = null;
+                this.currentFocusName = "None";
+                this.focusTargetText.textContent = "None";
+                this.isFollowingRotation = false;
+                this.userControlActive = true; // Give user control
+                this.controls.enabled = true;
+                this.controls.enableRotate = true;
+                // Optionally reset target slightly ahead of camera
+                // this.controls.target.copy(this.camera.position).add(this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(10));
+            }
+
+            toggleFollowRotation() {
+                 if (!this.currentFocusObject) {
+                     console.log("Cannot follow rotation - no object focused.");
+                     return; // Only works when focused
+                 }
+
+                 this.isFollowingRotation = !this.isFollowingRotation;
+                 this.userControlActive = false; // Disable standard focus follow lerp
+
+                 if (this.isFollowingRotation) {
+                     console.log(`Starting follow rotation for ${this.currentFocusName}`);
+                     this.controls.enabled = true; // Keep controls enabled for zoom
+                     this.controls.enableRotate = false; // Disable manual rotation
+                     this.focusTargetText.textContent = `${this.currentFocusName} (Rotating)`;
+
+                 } else {
+                     console.log(`Stopping follow rotation for ${this.currentFocusName}`);
+                     this.controls.enableRotate = true; // Re-enable manual rotation
+                     this.focusTargetText.textContent = this.currentFocusName; // Revert text
+                      // Update focus one last time to stabilise view before user takes over
+                     this.updateCameraFocus();
+                 }
+            }
+
+
+           updateCameraFocus() {
+                // Only follow if:
+                // 1. A target is set
+                // 2. User hasn't taken control
+                // 3. Not in follow-rotation mode
+                // 4. Controls are enabled (i.e., not during a tween)
+                if (!this.currentFocusObject || this.userControlActive || this.isFollowingRotation || !this.controls || !this.controls.enabled) {
+                    return;
+                }
+
+                const targetWorldPosition = new THREE.Vector3();
+                this.currentFocusObject.getWorldPosition(targetWorldPosition);
+
+                // Calculate the desired camera position based on the target's position and the stored offset
+                const desiredCamPos = targetWorldPosition.clone().add(this.focusOffset);
+
+                // Smoothly interpolate camera position and target using lerp
+                const lerpFactor = 0.1; // Adjust for smoother/faster follow
+                this.camera.position.lerp(desiredCamPos, lerpFactor);
+                this.controls.target.lerp(targetWorldPosition, lerpFactor);
+
+                // OrbitControls require update after manual changes if damping is enabled
+                 this.controls.update();
+            }
+        }
+
+        // --- Start the Simulation ---
+         document.addEventListener('DOMContentLoaded', () => {
+             const solarSystem = new SolarSystem();
+             solarSystem.init().catch(err => {
+                 console.error("Failed to initialize Solar System:", err);
+                 const loadingDiv = document.getElementById('loading');
+                 if (loadingDiv) {
+                     loadingDiv.textContent = "Error initializing simulation. Check console.";
+                     loadingDiv.style.color = "red";
+                     loadingDiv.style.display = "block";
+                 }
+             });
+         });
+
+    </script>
+</body>
+</html>

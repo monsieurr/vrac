@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Keep existing meta tags and title -->
+    <style>
+        /* Add toggle styles */
+        .mode-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: #fff;
+            padding: 10px 20px;
+            border-radius: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .mode-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        /* Update grid-item styles */
+        .grid-item {
+            transition: all 0.3s ease !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="mode-toggle" id="modeToggle">🌪 Insanity Mode</div>
+    <!-- Keep existing headers and grid structure -->
+
+    <script>
+        // Add mode state
+        let isInsanityMode = true;
+        
+        // Update color generators
+        function getRandomColor() {
+            if (!isInsanityMode) {
+                // Sanity colors - muted palette
+                const sanityColors = [
+                    '#F3E9D2', '#C6DABF', '#88D9E6', '#8B8BAE',
+                    '#A4C3B2', '#6B9080', '#A5A58D', '#E9EDC9'
+                ];
+                return sanityColors[Math.floor(Math.random() * sanityColors.length)];
+            }
+            // Original insanity colors
+            const r = Math.floor(Math.random() * 256);
+            const g = Math.floor(Math.random() * 256);
+            const b = Math.floor(Math.random() * 256);
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        function getRandomHSLColor() {
+            if (!isInsanityMode) {
+                // Sanity HSL - limited hue range
+                const h = Math.floor(Math.random() * 60) + 180; // Blues/teals
+                const s = Math.floor(Math.random() * 20) + 30;
+                const l = Math.floor(Math.random() * 20) + 50;
+                return `hsl(${h}, ${s}%, ${l}%)`;
+            }
+            // Original insanity HSL
+            const h = Math.floor(Math.random() * 360);
+            const s = Math.floor(Math.random() * 40) + 60;
+            const l = Math.floor(Math.random() * 40) + 30;
+            return `hsl(${h}, ${s}%, ${l}%)`;
+        }
+
+        // Update font selection
+        function getRandomFont() {
+            const sanityFonts = [
+                "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
+                "Georgia, serif",
+                'Verdana, sans-serif',
+                'Trebuchet MS, sans-serif',
+                'Tahoma, Geneva, sans-serif',
+                'Century Gothic, CenturyGothic, sans-serif'
+            ];
+            
+            const insanityFonts = [
+                "Georgia, serif",
+                "Verdana, sans-serif",
+                "Courier New, monospace",
+                "Arial Black, Gadget, sans-serif",
+                "Impact, Charcoal, sans-serif",
+                "Brush Script MT, cursive",
+                "Comic Sans MS, Comic Sans, cursive"
+            ];
+            
+            const fonts = isInsanityMode ? insanityFonts : sanityFonts;
+            const fontNum = Math.floor(Math.random() * fonts.length);
+            return {
+                class: `font${fontNum+1}`,
+                name: fonts[fontNum]
+            };
+        }
+
+        // Update background generation
+        function getRandomBackground() {
+            if (!isInsanityMode) {
+                // Sanity backgrounds - subtle gradients
+                const colors = [];
+                const baseHue = Math.floor(Math.random() * 60) + 180;
+                
+                for (let i = 0; i < 2; i++) {
+                    const h = baseHue + Math.floor(Math.random() * 20);
+                    const s = Math.floor(Math.random() * 15) + 15;
+                    const l = Math.floor(Math.random() * 15) + 65;
+                    colors.push(`hsl(${h}, ${s}%, ${l}%)`);
+                }
+                
+                return {
+                    type: 'linearGradient',
+                    value: `linear-gradient(135deg, ${colors.join(', ')})`,
+                    cssValue: `background: linear-gradient(135deg, ${colors.join(', ')});`
+                };
+            }
+            // Original insanity background logic
+            // ... [keep original insanity background code] ...
+        }
+
+        // Update animation generator
+        function getRandomAnimation() {
+            if (!isInsanityMode) {
+                // Sanity animations - subtle transitions
+                return Math.random() < 0.2 ? {
+                    has: true,
+                    cssValue: 'animation: fadeIn 1.5s ease;'
+                } : { has: false, cssValue: '' };
+            }
+            // Original insanity animations (without rotation)
+            const animations = [
+                {name: 'pulseAnimation', duration: '2s', timing: 'ease-in-out', iteration: 'infinite'},
+                {name: 'shimmerAnimation', duration: '3s', timing: 'linear', iteration: 'infinite'}
+            ];
+            // ... [rest of original animation code] ...
+        }
+
+        // Add sanity border logic
+        function getRandomBorder() {
+            if (!isInsanityMode) {
+                const colors = ['#e0e0e0', '#d0d0d0', '#c0c0c0'];
+                return {
+                    has: true,
+                    type: 'uniform',
+                    value: `1px solid ${colors[Math.floor(Math.random() * colors.length)]}`,
+                    cssValue: `border: 1px solid ${colors[Math.floor(Math.random() * colors.length)]};`
+                };
+            }
+            // Original insanity border code
+            // ... [keep original border code] ...
+        }
+
+        // Toggle functionality
+        document.getElementById('modeToggle').addEventListener('click', () => {
+            isInsanityMode = !isInsanityMode;
+            document.getElementById('modeToggle').textContent = 
+                `${isInsanityMode ? '🌪 Insanity' : '🧘 Sanity'} Mode`;
+            
+            // Clear existing grid and reload
+            const container = document.getElementById('grid');
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
+            page = 0;
+            loadMoreItems();
+        });
+
+        // Add sanity fadeIn animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Update existing functions to use mode checks
+        // ... [rest of your existing JavaScript code] ...
+    </script>
+</body>
+</html>
